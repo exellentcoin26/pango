@@ -1,3 +1,8 @@
+use regex::Tokenizer;
+
+mod regex;
+
 fn main() {
-    println!("Hello, World");
+    let tokenizer = Tokenizer::new(r"\f\n\r\\");
+    println!("{:?}", tokenizer.tokenize());
 }
