@@ -111,6 +111,10 @@ impl<'a> Tokenizer<'a> {
                     None => TokenKind::Invalid,
                 }
             }
+            'x' | 'u' => match self.handle_unicode_escape_sequence(ch) {
+                Some(literal) => TokenKind::Literal(literal),
+                None => TokenKind::Invalid,
+            },
 
             _ => TokenKind::Invalid,
         }
@@ -145,9 +149,7 @@ impl<'a> Tokenizer<'a> {
                 // point of the escape sequence. This way control characters
                 // 1-26 can be used.
 
-                let Some((_, ch)) = self.it.next() else {
-                    return None;
-                };
+                let (_, ch) = self.it.next()?;
 
                 match ch {
                     'a'..='z' | 'A'..='Z' => {
@@ -159,5 +161,69 @@ impl<'a> Tokenizer<'a> {
 
             _ => unreachable!("unhandled escape sequence ({})", ch),
         }
+    }
+
+    fn handle_unicode_escape_sequence(&mut self, ch: char) -> Option<char> {
+        match ch {
+            'x' => {
+                // Take the next two characters and interpret them as hexadecimals.
+                // Only take the second if the first could be converted to a
+                // hexadecimal, else early return to not take up the next
+                // character as well.
+
+                char::from_u32(self.take_next_hexadecimals_and_convert_to_u32(2)?)
+            }
+            'u' => {
+                // Two forms are possible, either `\uHHHH` or `\u{HHH}`.
+
+                let (_, ch) = self.it.next()?;
+
+                match ch {
+                    '{' => {
+                        // Take the next three characters, interpret them as
+                        // hexadecimal and return the unicode character. Only
+                        // take the next character if the previous was valid.
+
+                        let result =
+                            char::from_u32(self.take_next_hexadecimals_and_convert_to_u32(3)?);
+
+                        let (_, last_bracket) = self.it.next()?;
+
+                        if last_bracket == '}' {
+                            result
+                        } else {
+                            None
+                        }
+                    }
+
+                    _ => {
+                        // Take the next four characters, interpret them as
+                        // hexadecimal and return the unicode character. Only
+                        // take the next character if the previous was valid.
+
+                        let hex1 = ch.to_digit(16)?;
+
+                        char::from_u32(
+                            (hex1 << 12) + self.take_next_hexadecimals_and_convert_to_u32(3)?,
+                        )
+                    }
+                }
+            }
+
+            _ => unreachable!("unhandled unicode escape sequence"),
+        }
+    }
+
+    fn take_next_hexadecimals_and_convert_to_u32(&mut self, amount: u8) -> Option<u32> {
+        if amount > 8 {
+            panic!("cannot take more hexadecimals than 8, because the result should fit in a u32");
+        }
+
+        let mut digits = vec![0u32; amount as usize];
+        for i in 0..amount {
+            digits[i as usize] = self.it.next().and_then(|(_, ch)| ch.to_digit(16))?;
+        }
+
+        Some(digits.into_iter().fold(0, |acc, d| (acc << 4) + d))
     }
 }
