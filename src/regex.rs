@@ -76,7 +76,7 @@ impl<'a> Tokenizer<'a> {
         while let Some((start_cursor_pos, ch)) = self.it.next() {
             match ch {
                 '\\' => {
-                    let token_kind = self.take_class_or_escape_character();
+                    let token_kind = self.handle_class_or_escape_sequence();
                     let end_cursor_pos = match self.it.peek() {
                         Some((end_cursor_pos, _)) => *end_cursor_pos,
                         None => start_cursor_pos,
@@ -92,7 +92,7 @@ impl<'a> Tokenizer<'a> {
         self.tokens
     }
 
-    fn take_class_or_escape_character(&mut self) -> TokenKind {
+    fn handle_class_or_escape_sequence(&mut self) -> TokenKind {
         let Some((_, ch)) = self.it.next() else {
             // The last token of the input was a '\', which should always be
             // pared.
