@@ -1,17 +1,13 @@
-#![allow(dead_code)]
 #![allow(unused)]
 
-use std::{
-    iter::{Enumerate, Peekable},
-    str::Chars,
-};
+use std::{iter::Peekable, str::CharIndices};
 
 pub struct Tokenizer<'a> {
     /// Input the tokenizer will tokenize.
     input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
-    it: Peekable<Enumerate<Chars<'a>>>,
+    it: Peekable<CharIndices<'a>>,
     /// Temporary list of tokens from the tokenized input.
     /// TODO: Convert to iterator.
     tokens: Vec<Token>,
@@ -38,6 +34,7 @@ pub enum TokenKind {
     Literal(char),
     Class(ClassKind),
     Operator(OperatorKind),
+    Quantifier(QuantifierKind),
     Invalid,
 }
 
@@ -57,45 +54,142 @@ pub enum OperatorKind {
     LeftSquareBracket,
     RightSquareBracket,
     Carret,
-    Minus,
+    Vertical,
+}
+
+#[derive(Debug)]
+pub enum QuantifierKind {
     Asterisk,
-    QuestionMark,
     Plus,
+    QuestionMark,
+    Range(QuantifierRangeKind),
+}
+
+#[derive(Debug)]
+pub enum QuantifierRangeKind {
+    Max(u32),
+    Min(u32),
+    Range(u32, u32),
 }
 
 impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
             input,
-            it: input.chars().enumerate().peekable(),
+            it: input.char_indices().peekable(),
             tokens: Vec::new(),
         }
     }
 
     pub fn tokenize(mut self) -> Vec<Token> {
         while let Some((start_cursor_pos, ch)) = self.it.next() {
-            match ch {
-                '\\' => {
-                    let token_kind = self.handle_class_or_escape_sequence();
-                    let end_cursor_pos = match self.it.peek() {
-                        Some((end_cursor_pos, _)) => *end_cursor_pos,
-                        None => start_cursor_pos,
-                    };
-                    self.tokens
-                        .push(Token::new(token_kind, (start_cursor_pos, end_cursor_pos)));
-                }
+            let token_kind = match ch {
+                '\\' => self.handle_class_or_escape_sequence(),
+                '.' => TokenKind::Class(ClassKind::Wildcard),
+                '[' | ']' | '^' | '|' => self.handle_operators(ch),
+                '*' | '+' | '?' | '{' => self.handle_quantifier(ch),
 
                 _ => unimplemented!("character not handled! ({})", ch),
-            }
+            };
+
+            let end_cursor_pos = self.get_token_end_cursor_pos();
+            self.tokens
+                .push(Token::new(token_kind, (start_cursor_pos, end_cursor_pos)))
         }
 
         self.tokens
     }
 
+    fn handle_operators(&self, ch: char) -> TokenKind {
+        let operator_kind = match ch {
+            '[' => OperatorKind::LeftSquareBracket,
+            ']' => OperatorKind::RightSquareBracket,
+            '^' => OperatorKind::Carret,
+            '|' => OperatorKind::Vertical,
+
+            _ => unreachable!("unhandled operator ({})", ch),
+        };
+
+        TokenKind::Operator(operator_kind)
+    }
+
+    fn handle_quantifier(&mut self, ch: char) -> TokenKind {
+        let quantifier_kind = match ch {
+            '*' => QuantifierKind::Asterisk,
+            '+' => QuantifierKind::Plus,
+            '?' => QuantifierKind::QuestionMark,
+            '{' => {
+                // Handle range quantifiers
+                let Some((_, ch)) = self.it.peek() else {
+                    // the token was `{`
+                    return TokenKind::Invalid
+                };
+
+                if !ch.is_ascii_digit() {
+                    return TokenKind::Invalid;
+                }
+
+                let first_value = self.take_next_decimals_and_convert_to_u32();
+
+                let Some((_, mut ch)) = self.it.next() else {
+                            return TokenKind::Invalid;
+                        };
+
+                let comma_found = if ch == ',' {
+                    let Some((_, next_ch)) = self.it.next() else {
+                                // the token is `{<number>,`
+                                return TokenKind::Invalid;
+                            };
+                    ch = next_ch;
+                    true
+                } else {
+                    false
+                };
+
+                let range_kind = match ch {
+                    '}' => {
+                        let Some(first_value) = first_value else {
+                                    return TokenKind::Invalid;
+                                };
+                        if !comma_found {
+                            QuantifierRangeKind::Max(first_value)
+                        } else {
+                            QuantifierRangeKind::Min(first_value)
+                        }
+                    }
+                    '0'..='9' => {
+                        let second_value = self.take_next_decimals_and_convert_to_u32();
+
+                        let Some((_, ch)) = self.it.next() else {
+                            return TokenKind::Invalid;
+                        };
+
+                        if ch != '}' {
+                            return TokenKind::Invalid;
+                        } else {
+                            let (Some(min_value), Some(max_value)) = (first_value, second_value) else {
+                                return TokenKind::Invalid;
+                            };
+
+                            QuantifierRangeKind::Range(min_value, max_value)
+                        }
+                    }
+
+                    _ => return TokenKind::Invalid,
+                };
+
+                QuantifierKind::Range(range_kind)
+            }
+
+            _ => unreachable!("unhandled quantifier start character ({})", ch),
+        };
+
+        TokenKind::Quantifier(quantifier_kind)
+    }
+
     fn handle_class_or_escape_sequence(&mut self) -> TokenKind {
         let Some((_, ch)) = self.it.next() else {
-            // The last token of the input was a '\', which should always be
-            // pared.
+            // The last token of the input was a '\', which should always be pared.
             return TokenKind::Invalid;
         };
 
@@ -214,16 +308,40 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn take_next_hexadecimals_and_convert_to_u32(&mut self, amount: u8) -> Option<u32> {
+    fn take_next_hexadecimals_and_convert_to_u32(&mut self, amount: usize) -> Option<u32> {
         if amount > 8 {
             panic!("cannot take more hexadecimals than 8, because the result should fit in a u32");
         }
 
-        let mut digits = vec![0u32; amount as usize];
-        for i in 0..amount {
-            digits[i as usize] = self.it.next().and_then(|(_, ch)| ch.to_digit(16))?;
-        }
+        (&mut self.it)
+            .scan(0, |count, (_, ch)| {
+                if *count == amount {
+                    None
+                } else {
+                    ch.to_digit(16)
+                }
+            })
+            .reduce(|acc, d| (acc << 4) + d)
+    }
 
-        Some(digits.into_iter().fold(0, |acc, d| (acc << 4) + d))
+    /// Take all decimal characters from the input iterator even if they overflow the usize. If they overflow, return None.
+    fn take_next_decimals_and_convert_to_u32(&mut self) -> Option<u32> {
+        const U32_DIGIT_COUNT: u32 = 10;
+        (&mut self.it)
+            .scan(0, |count, (_, ch)| {
+                if *count == U32_DIGIT_COUNT {
+                    None
+                } else {
+                    ch.to_digit(10)
+                }
+            })
+            .reduce(|acc, d| (acc * 10) + d)
+    }
+
+    fn get_token_end_cursor_pos(&mut self) -> usize {
+        match self.it.peek() {
+            Some((end_cursor_pos, _)) => *end_cursor_pos - 1,
+            None => self.input.chars().count() - 1,
+        }
     }
 }
