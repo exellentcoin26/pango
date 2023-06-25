@@ -132,14 +132,14 @@ impl<'a> Tokenizer<'a> {
                 let first_value = self.take_next_decimals_and_convert_to_u32();
 
                 let Some((_, mut ch)) = self.it.next() else {
-                            return TokenKind::Invalid;
-                        };
+                    return TokenKind::Invalid;
+                };
 
                 let comma_found = if ch == ',' {
                     let Some((_, next_ch)) = self.it.next() else {
-                                // the token is `{<number>,`
-                                return TokenKind::Invalid;
-                            };
+                        // the token is `{<number>,`
+                        return TokenKind::Invalid;
+                    };
                     ch = next_ch;
                     true
                 } else {
@@ -324,18 +324,12 @@ impl<'a> Tokenizer<'a> {
             .reduce(|acc, d| (acc << 4) + d)
     }
 
-    /// Take all decimal characters from the input iterator even if they overflow the usize. If they overflow, return None.
+    /// Take all decimal characters from the input iterator even if they
+    /// overflow the u32. If they overflow, return None.
     fn take_next_decimals_and_convert_to_u32(&mut self) -> Option<u32> {
-        const U32_DIGIT_COUNT: u32 = 10;
         (&mut self.it)
-            .scan(0, |count, (_, ch)| {
-                if *count == U32_DIGIT_COUNT {
-                    None
-                } else {
-                    ch.to_digit(10)
-                }
-            })
-            .reduce(|acc, d| (acc * 10) + d)
+            .map_while(|(_, ch)| ch.to_digit(10))
+            .fold(Some(0), |acc, d| Some(acc?.checked_mul(10)? + d))
     }
 
     fn get_token_end_cursor_pos(&mut self) -> usize {
