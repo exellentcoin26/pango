@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::traits::CautiousMapWhileable;
 use std::{iter::Peekable, str::CharIndices};
 
 pub struct Tokenizer<'a> {
@@ -8,12 +9,9 @@ pub struct Tokenizer<'a> {
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
     it: Peekable<CharIndices<'a>>,
-    /// Temporary list of tokens from the tokenized input.
-    /// TODO: Convert to iterator.
-    tokens: Vec<Token>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     /// Information about the kind of token along with the value of the token.
     /// The value can already be parsed (e.g. unicode escape sequences)
@@ -29,16 +27,16 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TokenKind {
-    Literal(char),
     Class(ClassKind),
     Operator(OperatorKind),
     Quantifier(QuantifierKind),
+    Match(char),
     Invalid,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ClassKind {
     Wildcard,
     Word,
@@ -49,15 +47,17 @@ pub enum ClassKind {
     NonWhitespace,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum OperatorKind {
     LeftSquareBracket,
     RightSquareBracket,
+    LeftParen,
+    RightParan,
     Carret,
     Vertical,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QuantifierKind {
     Asterisk,
     Plus,
@@ -65,11 +65,36 @@ pub enum QuantifierKind {
     Range(QuantifierRangeKind),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QuantifierRangeKind {
     Max(u32),
     Min(u32),
     Range(u32, u32),
+}
+
+impl<'a> Iterator for Tokenizer<'a> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.it.next() {
+            Some((start_cursor_pos, ch)) => {
+                let token_kind = match ch {
+                    '\\' => self.handle_class_or_escape_sequence(),
+                    '.' => TokenKind::Class(ClassKind::Wildcard),
+                    '[' | ']' | '(' | ')' | '^' | '|' => self.handle_operators(ch),
+                    '*' | '+' | '?' | '{' => self.handle_quantifier(ch),
+
+                    a => TokenKind::Match(a),
+                };
+
+                Some(Token::new(
+                    token_kind,
+                    (start_cursor_pos, self.get_token_end_cursor_pos()),
+                ))
+            }
+            None => None,
+        }
+    }
 }
 
 impl<'a> Tokenizer<'a> {
@@ -77,27 +102,7 @@ impl<'a> Tokenizer<'a> {
         Self {
             input,
             it: input.char_indices().peekable(),
-            tokens: Vec::new(),
         }
-    }
-
-    pub fn tokenize(mut self) -> Vec<Token> {
-        while let Some((start_cursor_pos, ch)) = self.it.next() {
-            let token_kind = match ch {
-                '\\' => self.handle_class_or_escape_sequence(),
-                '.' => TokenKind::Class(ClassKind::Wildcard),
-                '[' | ']' | '^' | '|' => self.handle_operators(ch),
-                '*' | '+' | '?' | '{' => self.handle_quantifier(ch),
-
-                _ => unimplemented!("character not handled! ({})", ch),
-            };
-
-            let end_cursor_pos = self.get_token_end_cursor_pos();
-            self.tokens
-                .push(Token::new(token_kind, (start_cursor_pos, end_cursor_pos)))
-        }
-
-        self.tokens
     }
 
     fn handle_operators(&self, ch: char) -> TokenKind {
@@ -120,7 +125,7 @@ impl<'a> Tokenizer<'a> {
             '?' => QuantifierKind::QuestionMark,
             '{' => {
                 // Handle range quantifiers
-                let Some((_, ch)) = self.it.peek() else {
+                let Some((_, ch)) = self.it.next() else {
                     // the token was `{`
                     return TokenKind::Invalid
                 };
@@ -129,7 +134,10 @@ impl<'a> Tokenizer<'a> {
                     return TokenKind::Invalid;
                 }
 
-                let first_value = self.take_next_decimals_and_convert_to_u32();
+                let first_value = self.take_next_decimals_and_convert_to_u32(Some(
+                    ch.to_digit(10)
+                        .expect("failed to convert character to ascii digit"),
+                ));
 
                 let Some((_, mut ch)) = self.it.next() else {
                     return TokenKind::Invalid;
@@ -158,7 +166,10 @@ impl<'a> Tokenizer<'a> {
                         }
                     }
                     '0'..='9' => {
-                        let second_value = self.take_next_decimals_and_convert_to_u32();
+                        let second_value = self.take_next_decimals_and_convert_to_u32(Some(
+                            ch.to_digit(10)
+                                .expect("failed to convert character to ascii digit"),
+                        ));
 
                         let Some((_, ch)) = self.it.next() else {
                             return TokenKind::Invalid;
@@ -201,12 +212,12 @@ impl<'a> Tokenizer<'a> {
             'f' | 'n' | 'r' | 't' | 'v' | 'c' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?'
             | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '/' => {
                 match self.handle_escape_sequence(ch) {
-                    Some(literal) => TokenKind::Literal(literal),
+                    Some(literal) => TokenKind::Match(literal),
                     None => TokenKind::Invalid,
                 }
             }
             'x' | 'u' => match self.handle_unicode_escape_sequence(ch) {
-                Some(literal) => TokenKind::Literal(literal),
+                Some(literal) => TokenKind::Match(literal),
                 None => TokenKind::Invalid,
             },
 
@@ -265,7 +276,14 @@ impl<'a> Tokenizer<'a> {
                 // hexadecimal, else early return to not take up the next
                 // character as well.
 
-                char::from_u32(self.take_next_hexadecimals_and_convert_to_u32(2)?)
+                let (digit_amount, character_code) =
+                    self.take_next_hexadecimals_and_convert_to_u32(2, None)?;
+
+                if digit_amount != 2 {
+                    return None;
+                }
+
+                char::from_u32(character_code)
             }
             'u' => {
                 // Two forms are possible, either `\uHHHH` or `\u{HHH}`.
@@ -274,12 +292,17 @@ impl<'a> Tokenizer<'a> {
 
                 match ch {
                     '{' => {
-                        // Take the next three characters, interpret them as
-                        // hexadecimal and return the unicode character. Only
-                        // take the next character if the previous was valid.
+                        // Take the next four to five characters, interpret them as
+                        // hexadecimal and return the unicode character.
 
-                        let result =
-                            char::from_u32(self.take_next_hexadecimals_and_convert_to_u32(3)?);
+                        let (digit_amount, character_code) =
+                            self.take_next_hexadecimals_and_convert_to_u32(5, None)?;
+
+                        if digit_amount < 4 {
+                            return None;
+                        }
+
+                        let result = char::from_u32(character_code);
 
                         let (_, last_bracket) = self.it.next()?;
 
@@ -292,14 +315,15 @@ impl<'a> Tokenizer<'a> {
 
                     _ => {
                         // Take the next four characters, interpret them as
-                        // hexadecimal and return the unicode character. Only
-                        // take the next character if the previous was valid.
+                        // hexadecimal and return the unicode character.
 
                         let hex1 = ch.to_digit(16)?;
 
-                        char::from_u32(
-                            (hex1 << 12) + self.take_next_hexadecimals_and_convert_to_u32(3)?,
-                        )
+                        // Note: The first character has already been consumed.
+                        let (digit_count, partial_character_code) =
+                            self.take_next_hexadecimals_and_convert_to_u32(3, Some(hex1))?;
+
+                        char::from_u32((hex1 << (4 * (digit_count + 1))) + partial_character_code)
                     }
                 }
             }
@@ -308,34 +332,49 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn take_next_hexadecimals_and_convert_to_u32(&mut self, amount: usize) -> Option<u32> {
-        if amount > 8 {
-            panic!("cannot take more hexadecimals than 8, because the result should fit in a u32");
-        }
+    /// Returns the count of digits and converts them to u32 including the starting digit if present.
+    /// Takes all hexadecimals it can take.
+    /// It only returns Some when the amount was the expected amount.
+    fn take_next_hexadecimals_and_convert_to_u32(
+        &mut self,
+        max_digits: usize,
+        start: Option<u32>,
+    ) -> Option<(u32, u32)> {
+        assert!(max_digits < 8, "amount of digits should fit in u32");
 
-        (&mut self.it)
-            .scan(0, |count, (_, ch)| {
-                if *count == amount {
-                    None
-                } else {
-                    ch.to_digit(16)
-                }
+        let (digit_count, start) = match start {
+            Some(d) => {
+                assert!(
+                    d < 16,
+                    "starting digit should be less than 16 (hexadecimal)"
+                );
+                (1, d)
+            }
+            None => (0, 0),
+        };
+
+        self.it
+            .by_ref()
+            .cautious_map_while(|(_, ch)| ch.to_digit(16))
+            .fold(Some((digit_count, start)), |acc, d| {
+                acc.map(|(digit_count, n)| (digit_count + 1, (n << 4) + d))
             })
-            .reduce(|acc, d| (acc << 4) + d)
     }
 
     /// Take all decimal characters from the input iterator even if they
     /// overflow the u32. If they overflow, return None.
-    fn take_next_decimals_and_convert_to_u32(&mut self) -> Option<u32> {
+    fn take_next_decimals_and_convert_to_u32(&mut self, start: Option<u32>) -> Option<u32> {
         (&mut self.it)
             .map_while(|(_, ch)| ch.to_digit(10))
-            .fold(Some(0), |acc, d| Some(acc?.checked_mul(10)? + d))
+            .fold(start.or(Some(0)), |acc, d| Some(acc?.checked_mul(10)? + d))
     }
 
     fn get_token_end_cursor_pos(&mut self) -> usize {
         match self.it.peek() {
-            Some((end_cursor_pos, _)) => *end_cursor_pos - 1,
-            None => self.input.chars().count() - 1,
+            Some((end_cursor_pos, _)) => *end_cursor_pos,
+            None => self.input.chars().count(),
         }
     }
 }
+}
+
