@@ -376,5 +376,46 @@ impl<'a> Tokenizer<'a> {
         }
     }
 }
-}
 
+#[cfg(test)]
+mod tests {
+    use super::{
+        Token,
+        TokenKind::{self, *},
+        Tokenizer,
+    };
+
+    macro_rules! tokens {
+        ($(($start:expr, $end:expr) => $token_kind:expr),*) => {
+           [$(Token::new($token_kind.into(), ($start, $end))),*]
+        };
+    }
+
+    macro_rules! assert_eq_tokens {
+        ($lhs:expr, $rhs:expr) => {
+            assert!($lhs.into_iter().eq($rhs))
+        };
+    }
+
+    #[test]
+    fn tokenize_match() {
+        let mut tokenizer = Tokenizer::new("Hello, World!");
+        let tokens = tokens![
+            (0, 1) => Match('H'),
+            (1, 2) => Match('e'),
+            (2, 3) => Match('l'),
+            (3, 4) => Match('l'),
+            (4, 5) => Match('o'),
+            (5, 6) => Match(','),
+            (6, 7) => Match(' '),
+            (7, 8) => Match('W'),
+            (8, 9) => Match('o'),
+            (9, 10) => Match('r'),
+            (10, 11) => Match('l'),
+            (11, 12) => Match('d'),
+            (12, 13) => Match('!')
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+}
