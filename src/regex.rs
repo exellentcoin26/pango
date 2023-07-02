@@ -493,6 +493,33 @@ mod tests {
     }
 
     #[test]
+    fn control_character_constructs() {
+        let mut tokenizer = Tokenizer::new(r"\cA\cZ\cJ");
+        let tokens = tokens![
+            (0, 3) => Match('\u{1}'),
+            (3, 6) => Match('\u{1a}'),
+            (6, 9) => Match('\n')
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
+    fn escape_characters() {
+        let mut tokenizer = Tokenizer::new(r"\t\r\n\v\f\0");
+        let tokens = tokens![
+            (0, 2) => Match('\t'),
+            (2, 4) => Match('\r'),
+            (4, 6) => Match('\n'),
+            (6, 8) => Match('\u{b}'),
+            (8, 10) => Match('\u{c}'),
+            (10, 12) => Match('\0')
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
     fn character_classes() {
         let mut tokenizer = Tokenizer::new(r".\d\D\w\W\s\S");
         let mut tokens = tokens![
