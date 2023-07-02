@@ -58,6 +58,7 @@ pub enum OperatorKind {
     RightParan,
     Carret,
     Vertical,
+    Minus,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -84,7 +85,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 let token_kind = match ch {
                     '\\' => self.handle_class_or_escape_sequence(),
                     '.' => TokenKind::Class(ClassKind::Wildcard),
-                    '[' | ']' | '(' | ')' | '^' | '|' => self.handle_operators(ch),
+                    '[' | ']' | '(' | ')' | '^' | '|' | '-' => self.handle_operators(ch),
                     '*' | '+' | '?' | '{' => self.handle_quantifier(ch),
 
                     a => TokenKind::Match(a),
@@ -112,10 +113,13 @@ impl<'a> Tokenizer<'a> {
         let operator_kind = match ch {
             '[' => OperatorKind::LeftSquareBracket,
             ']' => OperatorKind::RightSquareBracket,
+            '(' => OperatorKind::LeftParen,
+            ')' => OperatorKind::RightParan,
             '^' => OperatorKind::Carret,
             '|' => OperatorKind::Vertical,
+            '-' => OperatorKind::Minus,
 
-            _ => unreachable!("unhandled operator ({})", ch),
+            _ => unreachable!("unhandled operator (`{}`)", ch),
         };
 
         TokenKind::Operator(operator_kind)
@@ -195,7 +199,7 @@ impl<'a> Tokenizer<'a> {
                 QuantifierKind::Range(range_kind)
             }
 
-            _ => unreachable!("unhandled quantifier start character ({})", ch),
+            _ => unreachable!("unhandled quantifier start character (`{}`)", ch),
         };
 
         TokenKind::Quantifier(quantifier_kind)
@@ -233,7 +237,7 @@ impl<'a> Tokenizer<'a> {
             's' => ClassKind::Whitespace,
             'S' => ClassKind::NonWhitespace,
 
-            _ => unreachable!("unhandled character class ({})", ch),
+            _ => unreachable!("unhandled character class (`{}`)", ch),
         }
     }
 
@@ -263,7 +267,7 @@ impl<'a> Tokenizer<'a> {
                 }
             }
 
-            _ => unreachable!("unhandled escape sequence ({})", ch),
+            _ => unreachable!("unhandled escape sequence (`{}`)", ch),
         }
     }
 
@@ -380,6 +384,7 @@ impl<'a> Tokenizer<'a> {
 mod tests {
     use super::{
         ClassKind::{self, *},
+        OperatorKind::{self, *},
         Token,
         TokenKind::{self, *},
         Tokenizer,
@@ -498,6 +503,22 @@ mod tests {
             (7, 9) => Class(NonWord),
             (9, 11) => Class(Whitespace),
             (11, 13) => Class(NonWhitespace)
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
+    fn operators() {
+        let mut tokenizer = Tokenizer::new("[]()^|-");
+        let tokens = tokens![
+            (0, 1) => Operator(LeftSquareBracket),
+            (1, 2) => Operator(RightSquareBracket),
+            (2, 3) => Operator(LeftParen),
+            (3, 4) => Operator(RightParan),
+            (4, 5) => Operator(Carret),
+            (5, 6) => Operator(Vertical),
+            (6, 7) => Operator(Minus)
         ];
 
         assert_eq_tokens!(tokens, tokenizer);
