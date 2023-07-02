@@ -1,14 +1,17 @@
 #![allow(unused)]
 
-use crate::traits::CautiousMapWhileable;
-use std::{iter::Peekable, str::CharIndices};
+use crate::iter::{CachedPeekable, CachedPeekableable, CautiousMapWhileable, Peekableable};
+use std::{
+    iter::{Enumerate, Peekable},
+    str::Chars,
+};
 
 pub struct Tokenizer<'a> {
     /// Input the tokenizer will tokenize.
     input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
-    it: Peekable<CharIndices<'a>>,
+    it: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -101,7 +104,7 @@ impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
             input,
-            it: input.char_indices().peekable(),
+            it: input.chars().enumerate().cached_peekable(),
         }
     }
 
@@ -320,10 +323,10 @@ impl<'a> Tokenizer<'a> {
                         let hex1 = ch.to_digit(16)?;
 
                         // Note: The first character has already been consumed.
-                        let (digit_count, partial_character_code) =
-                            self.take_next_hexadecimals_and_convert_to_u32(3, Some(hex1))?;
+                        let (digit_count, character_code) =
+                            self.take_next_hexadecimals_and_convert_to_u32(4, Some(hex1))?;
 
-                        char::from_u32((hex1 << (4 * (digit_count + 1))) + partial_character_code)
+                        char::from_u32(character_code)
                     }
                 }
             }
@@ -370,9 +373,9 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn get_token_end_cursor_pos(&mut self) -> usize {
-        match self.it.peek() {
-            Some((end_cursor_pos, _)) => *end_cursor_pos,
-            None => self.input.chars().count(),
+        match self.it.current() {
+            Some((cursor_pos, _)) => cursor_pos + 1,
+            None => 1,
         }
     }
 }
@@ -393,7 +396,21 @@ mod tests {
 
     macro_rules! assert_eq_tokens {
         ($lhs:expr, $rhs:expr) => {
-            assert!($lhs.into_iter().eq($rhs))
+            for (expected, actual) in $lhs.into_iter().zip($rhs) {
+                assert_eq!(expected, actual);
+            }
+        };
+    }
+
+    macro_rules! print_tokens {
+        ($tokens:expr) => {
+            for Token {
+                kind,
+                pos: (start, end),
+            } in $tokens
+            {
+                println!("({}, {}) => {:?}", start, end, kind);
+            }
         };
     }
 
@@ -417,5 +434,59 @@ mod tests {
         ];
 
         assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
+    fn tokenize_unicode_literals() {
+        let mut tokenizer = Tokenizer::new("⬛α🌟🔥ž 🍎ж🐶日!3ç🌺💡ś 🎉ë🌞🐧");
+        let tokens = tokens![
+            (0, 1) => Match('⬛'),
+            (1, 2) => Match('α'),
+            (2, 3) => Match('🌟'),
+            (3, 4) => Match('🔥'),
+            (4, 5) => Match('ž'),
+            (5, 6) => Match(' '),
+            (6, 7) => Match('🍎'),
+            (7, 8) => Match('ж'),
+            (8, 9) => Match('🐶'),
+            (9, 10) => Match('日'),
+            (10, 11) => Match('!'),
+            (11, 12) => Match('3'),
+            (12, 13) => Match('ç'),
+            (13, 14) => Match('🌺'),
+            (14, 15) => Match('💡'),
+            (15, 16) => Match('ś'),
+            (16, 17) => Match(' '),
+            (17, 18) => Match('🎉'),
+            (18, 19) => Match('ë'),
+            (19, 20) => Match('🌞'),
+            (20, 21) => Match('🐧')
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
+    fn tokenize_unicode_constructs() {
+        let mut tokenizer = Tokenizer::new(
+            r"\u{27A1}\u{1F319}\u{1F4A1}\u{1F34E}\u{2328}\u27A1\u27B7\u1CA1\u27BE\xF0\x9F\x8C\x99",
+        );
+        let tokens = tokens![
+            (0, 8) => Match('➡'),
+            (8, 17) => Match('🌙'),
+            (17, 26) => Match('💡'),
+            (26, 35) => Match('🍎'),
+            (35, 43) => Match('⌨'),
+            (43, 49) => Match('➡'),
+            (49, 55) => Match('➷'),
+            (55, 61) => Match('Ს'),
+            (61, 67) => Match('➾'),
+            (67, 71) => Match('ð'),
+            (71, 75) => Match('\u{9f}'),
+            (75, 79) => Match('\u{8c}'),
+            (79, 83) => Match('\u{99}')
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer)
     }
 }
