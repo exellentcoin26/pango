@@ -161,11 +161,15 @@ impl<'a> Tokenizer<'a> {
                     false
                 };
 
+                dbg!(ch);
+
                 let range_kind = match ch {
                     '}' => {
+                        dbg!(first_value);
+
                         let Some(first_value) = first_value else {
-                                    return TokenKind::Invalid;
-                                };
+                            return TokenKind::Invalid;
+                        };
                         if !comma_found {
                             QuantifierRangeKind::Max(first_value)
                         } else {
@@ -369,7 +373,7 @@ impl<'a> Tokenizer<'a> {
     /// overflow the u32. If they overflow, return None.
     fn take_next_decimals_and_convert_to_u32(&mut self, start: Option<u32>) -> Option<u32> {
         (&mut self.it)
-            .map_while(|(_, ch)| ch.to_digit(10))
+            .cautious_map_while(|(_, ch)| ch.to_digit(10))
             .fold(start.or(Some(0)), |acc, d| Some(acc?.checked_mul(10)? + d))
     }
 
@@ -386,7 +390,8 @@ mod tests {
     use super::{
         ClassKind::{self, *},
         OperatorKind::{self, *},
-        Token,
+        QuantifierKind::{self, *},
+        QuantifierRangeKind, Token,
         TokenKind::{self, *},
         Tokenizer,
     };
@@ -560,6 +565,21 @@ mod tests {
             (4, 5) => Operator(Carret),
             (5, 6) => Operator(Vertical),
             (6, 7) => Operator(Minus)
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
+    }
+
+    #[test]
+    fn quantifiers() {
+        let mut tokenizer = Tokenizer::new("?+*{123}{659,}{495,1003}");
+        let tokens = tokens![
+            (0, 1) => Quantifier(QuestionMark),
+            (1, 2) => Quantifier(Plus),
+            (2, 3) => Quantifier(Asterisk),
+            (3, 8) => Quantifier(Range(QuantifierRangeKind::Max(123))),
+            (8, 14) => Quantifier(Range(QuantifierRangeKind::Min(659))),
+            (14, 24) => Quantifier(Range(QuantifierRangeKind::Range(495, 1003)))
         ];
 
         assert_eq_tokens!(tokens, tokenizer);
