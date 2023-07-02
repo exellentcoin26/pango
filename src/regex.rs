@@ -7,7 +7,7 @@ use std::{
 };
 
 pub struct Tokenizer<'a> {
-    /// Input the tokenizer will tokenize.
+    /// The input the tokenizer is going to tokenize.
     input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
@@ -213,16 +213,12 @@ impl<'a> Tokenizer<'a> {
                 TokenKind::Class(class)
             }
             'f' | 'n' | 'r' | 't' | 'v' | 'c' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?'
-            | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '/' => {
-                match self.handle_escape_sequence(ch) {
-                    Some(literal) => TokenKind::Match(literal),
-                    None => TokenKind::Invalid,
-                }
-            }
-            'x' | 'u' => match self.handle_unicode_escape_sequence(ch) {
-                Some(literal) => TokenKind::Match(literal),
-                None => TokenKind::Invalid,
-            },
+            | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '/' => self
+                .handle_escape_sequence(ch)
+                .map_or(TokenKind::Invalid, TokenKind::Match),
+            'x' | 'u' => self
+                .handle_unicode_escape_sequence(ch)
+                .map_or(TokenKind::Invalid, TokenKind::Match),
 
             _ => TokenKind::Invalid,
         }
@@ -383,6 +379,7 @@ impl<'a> Tokenizer<'a> {
 #[cfg(test)]
 mod tests {
     use super::{
+        ClassKind::{self, *},
         Token,
         TokenKind::{self, *},
         Tokenizer,
@@ -415,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_match() {
+    fn matches() {
         let mut tokenizer = Tokenizer::new("Hello, World!");
         let tokens = tokens![
             (0, 1) => Match('H'),
@@ -437,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_unicode_literals() {
+    fn unicode_literals() {
         let mut tokenizer = Tokenizer::new("⬛α🌟🔥ž 🍎ж🐶日!3ç🌺💡ś 🎉ë🌞🐧");
         let tokens = tokens![
             (0, 1) => Match('⬛'),
@@ -467,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_unicode_constructs() {
+    fn unicode_constructs() {
         let mut tokenizer = Tokenizer::new(
             r"\u{27A1}\u{1F319}\u{1F4A1}\u{1F34E}\u{2328}\u27A1\u27B7\u1CA1\u27BE\xF0\x9F\x8C\x99",
         );
@@ -488,5 +485,21 @@ mod tests {
         ];
 
         assert_eq_tokens!(tokens, tokenizer)
+    }
+
+    #[test]
+    fn character_classes() {
+        let mut tokenizer = Tokenizer::new(r".\d\D\w\W\s\S");
+        let mut tokens = tokens![
+            (0, 1) => Class(Wildcard),
+            (1, 3) => Class(Digit),
+            (3, 5) => Class(NonDigit),
+            (5, 7) => Class(Word),
+            (7, 9) => Class(NonWord),
+            (9, 11) => Class(Whitespace),
+            (11, 13) => Class(NonWhitespace)
+        ];
+
+        assert_eq_tokens!(tokens, tokenizer);
     }
 }
