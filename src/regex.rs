@@ -1,10 +1,5 @@
-#![allow(unused)]
-
-use crate::iter::{CachedPeekable, CachedPeekableable, CautiousMapWhileable, Peekableable};
-use std::{
-    iter::{Enumerate, Peekable},
-    str::Chars,
-};
+use crate::iter::{CachedPeekable, CachedPeekableable, CautiousMapWhileable};
+use std::{iter::Enumerate, str::Chars};
 
 pub struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
@@ -161,12 +156,8 @@ impl<'a> Tokenizer<'a> {
                     false
                 };
 
-                dbg!(ch);
-
                 let range_kind = match ch {
                     '}' => {
-                        dbg!(first_value);
-
                         let Some(first_value) = first_value else {
                             return TokenKind::Invalid;
                         };
@@ -328,7 +319,7 @@ impl<'a> Tokenizer<'a> {
                         let hex1 = ch.to_digit(16)?;
 
                         // Note: The first character has already been consumed.
-                        let (digit_count, character_code) =
+                        let (_, character_code) =
                             self.take_next_hexadecimals_and_convert_to_u32(4, Some(hex1))?;
 
                         char::from_u32(character_code)
@@ -388,11 +379,7 @@ impl<'a> Tokenizer<'a> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClassKind::{self, *},
-        OperatorKind::{self, *},
-        QuantifierKind::{self, *},
-        QuantifierRangeKind, Token,
-        TokenKind::{self, *},
+        ClassKind::*, OperatorKind::*, QuantifierKind::*, QuantifierRangeKind, Token, TokenKind::*,
         Tokenizer,
     };
 
@@ -410,6 +397,7 @@ mod tests {
         };
     }
 
+    #[allow(unused)]
     macro_rules! print_tokens {
         ($tokens:expr) => {
             for Token {
@@ -424,7 +412,7 @@ mod tests {
 
     #[test]
     fn matches() {
-        let mut tokenizer = Tokenizer::new("Hello, World!");
+        let tokenizer = Tokenizer::new("Hello, World!");
         let tokens = tokens![
             (0, 1) => Match('H'),
             (1, 2) => Match('e'),
@@ -446,7 +434,7 @@ mod tests {
 
     #[test]
     fn unicode_literals() {
-        let mut tokenizer = Tokenizer::new("⬛α🌟🔥ž 🍎ж🐶日!3ç🌺💡ś 🎉ë🌞🐧");
+        let tokenizer = Tokenizer::new("⬛α🌟🔥ž 🍎ж🐶日!3ç🌺💡ś 🎉ë🌞🐧");
         let tokens = tokens![
             (0, 1) => Match('⬛'),
             (1, 2) => Match('α'),
@@ -476,7 +464,7 @@ mod tests {
 
     #[test]
     fn unicode_constructs() {
-        let mut tokenizer = Tokenizer::new(
+        let tokenizer = Tokenizer::new(
             r"\u{27A1}\u{1F319}\u{1F4A1}\u{1F34E}\u{2328}\u27A1\u27B7\u1CA1\u27BE\xF0\x9F\x8C\x99",
         );
         let tokens = tokens![
@@ -500,7 +488,7 @@ mod tests {
 
     #[test]
     fn control_character_constructs() {
-        let mut tokenizer = Tokenizer::new(r"\cA\cZ\cJ");
+        let tokenizer = Tokenizer::new(r"\cA\cZ\cJ");
         let tokens = tokens![
             (0, 3) => Match('\u{1}'),
             (3, 6) => Match('\u{1a}'),
@@ -512,7 +500,7 @@ mod tests {
 
     #[test]
     fn escape_characters() {
-        let mut tokenizer = Tokenizer::new(r"\f\n\r\t\v\0\^\$\\\.\*\+\?\(\)\[\]\|\/");
+        let tokenizer = Tokenizer::new(r"\f\n\r\t\v\0\^\$\\\.\*\+\?\(\)\[\]\|\/");
         let tokens = tokens![
             (0, 2) => Match('\u{c}'),
             (2, 4) => Match('\n'),
@@ -540,8 +528,8 @@ mod tests {
 
     #[test]
     fn character_classes() {
-        let mut tokenizer = Tokenizer::new(r".\d\D\w\W\s\S");
-        let mut tokens = tokens![
+        let tokenizer = Tokenizer::new(r".\d\D\w\W\s\S");
+        let tokens = tokens![
             (0, 1) => Class(Wildcard),
             (1, 3) => Class(Digit),
             (3, 5) => Class(NonDigit),
@@ -556,7 +544,7 @@ mod tests {
 
     #[test]
     fn operators() {
-        let mut tokenizer = Tokenizer::new("[]()^|-");
+        let tokenizer = Tokenizer::new("[]()^|-");
         let tokens = tokens![
             (0, 1) => Operator(LeftSquareBracket),
             (1, 2) => Operator(RightSquareBracket),
@@ -572,7 +560,7 @@ mod tests {
 
     #[test]
     fn quantifiers() {
-        let mut tokenizer = Tokenizer::new("?+*{123}{659,}{495,1003}");
+        let tokenizer = Tokenizer::new("?+*{123}{659,}{495,1003}");
         let tokens = tokens![
             (0, 1) => Quantifier(QuestionMark),
             (1, 2) => Quantifier(Plus),
