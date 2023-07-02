@@ -216,8 +216,8 @@ impl<'a> Tokenizer<'a> {
                 let class = self.handle_class(ch);
                 TokenKind::Class(class)
             }
-            'f' | 'n' | 'r' | 't' | 'v' | 'c' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?'
-            | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '/' => self
+            'f' | 'n' | 'r' | 't' | 'v' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '('
+            | ')' | '[' | ']' | '|' | '/' | 'c' => self
                 .handle_escape_sequence(ch)
                 .map_or(TokenKind::Invalid, TokenKind::Match),
             'x' | 'u' => self
@@ -249,8 +249,9 @@ impl<'a> Tokenizer<'a> {
             't' => Some('\t'),
             'v' => Some(char::from_u32(0xb).expect("failed to convert code point to character")),
             '0' => Some('\0'),
-            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|'
-            | '/' => Some(ch),
+            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '/' => {
+                Some(ch)
+            }
             'c' => {
                 // 'c' is followed by a letter from 'A'..='Z' or 'a'..='z'. The
                 // code point of the following letter modulo 32 is the code
@@ -506,14 +507,27 @@ mod tests {
 
     #[test]
     fn escape_characters() {
-        let mut tokenizer = Tokenizer::new(r"\t\r\n\v\f\0");
+        let mut tokenizer = Tokenizer::new(r"\f\n\r\t\v\0\^\$\\\.\*\+\?\(\)\[\]\|\/");
         let tokens = tokens![
-            (0, 2) => Match('\t'),
-            (2, 4) => Match('\r'),
-            (4, 6) => Match('\n'),
-            (6, 8) => Match('\u{b}'),
-            (8, 10) => Match('\u{c}'),
-            (10, 12) => Match('\0')
+            (0, 2) => Match('\u{c}'),
+            (2, 4) => Match('\n'),
+            (4, 6) => Match('\r'),
+            (6, 8) => Match('\t'),
+            (8, 10) => Match('\u{b}'),
+            (10, 12) => Match('\0'),
+            (12, 14) => Match('^'),
+            (14, 16) => Match('$'),
+            (16, 18) => Match('\\'),
+            (18, 20) => Match('.'),
+            (20, 22) => Match('*'),
+            (22, 24) => Match('+'),
+            (24, 26) => Match('?'),
+            (26, 28) => Match('('),
+            (28, 30) => Match(')'),
+            (30, 32) => Match('['),
+            (32, 34) => Match(']'),
+            (34, 36) => Match('|'),
+            (36, 38) => Match('/')
         ];
 
         assert_eq_tokens!(tokens, tokenizer);
