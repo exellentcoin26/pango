@@ -7,7 +7,7 @@ pub struct CautiousTakeWhile<'a, I: Iterator, P>
 where
     P: Fn(&I::Item) -> bool,
 {
-    inner: &'a mut Peekable<I>,
+    iter: &'a mut Peekable<I>,
     predicate: P,
 }
 
@@ -25,13 +25,13 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let return_next = match self.inner.peek() {
+        let return_next = match self.iter.peek() {
             Some(next) => (self.predicate)(next),
             None => false,
         };
 
         if return_next {
-            self.inner.next()
+            self.iter.next()
         } else {
             None
         }
@@ -44,7 +44,7 @@ where
 {
     fn cautious_take_while(&mut self, predicate: P) -> CautiousTakeWhile<I, P> {
         CautiousTakeWhile {
-            inner: self,
+            iter: self,
             predicate,
         }
     }

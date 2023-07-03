@@ -8,7 +8,7 @@ where
     P: Peekableable,
     Pr: Fn(&P::Item) -> Option<T>,
 {
-    inner: &'a mut P,
+    iter: &'a mut P,
     predicate: Pr,
 }
 
@@ -26,12 +26,12 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.peek() {
+        match self.iter.peek() {
             Some(next) => {
                 let result = (self.predicate)(next);
 
                 if result.is_some() {
-                    self.inner.next();
+                    self.iter.next();
                 }
 
                 result
@@ -47,7 +47,7 @@ where
 {
     fn cautious_map_while(&mut self, predicate: Pr) -> CautiousMapWhile<P, Pr, T> {
         CautiousMapWhile {
-            inner: self,
+            iter: self,
             predicate,
         }
     }

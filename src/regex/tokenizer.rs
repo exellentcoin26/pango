@@ -6,7 +6,7 @@ pub struct Tokenizer<'a> {
     input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
-    it: CachedPeekable<Enumerate<Chars<'a>>>,
+    iter: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -75,7 +75,7 @@ impl<'a> Iterator for Tokenizer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.it.next() {
+        match self.iter.next() {
             Some((start_cursor_pos, ch)) => {
                 let token_kind = match ch {
                     '\\' => self.handle_class_or_escape_sequence(),
@@ -100,7 +100,7 @@ impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
             input,
-            it: input.chars().enumerate().cached_peekable(),
+            iter: input.chars().enumerate().cached_peekable(),
         }
     }
 
@@ -127,7 +127,7 @@ impl<'a> Tokenizer<'a> {
             '?' => QuantifierKind::QuestionMark,
             '{' => {
                 // Handle range quantifiers
-                let Some((_, ch)) = self.it.next() else {
+                let Some((_, ch)) = self.iter.next() else {
                     // the token was `{`
                     return TokenKind::Invalid
                 };
@@ -141,12 +141,12 @@ impl<'a> Tokenizer<'a> {
                         .expect("failed to convert character to ascii digit"),
                 ));
 
-                let Some((_, mut ch)) = self.it.next() else {
+                let Some((_, mut ch)) = self.iter.next() else {
                     return TokenKind::Invalid;
                 };
 
                 let comma_found = if ch == ',' {
-                    let Some((_, next_ch)) = self.it.next() else {
+                    let Some((_, next_ch)) = self.iter.next() else {
                         // the token is `{<number>,`
                         return TokenKind::Invalid;
                     };
@@ -173,7 +173,7 @@ impl<'a> Tokenizer<'a> {
                                 .expect("failed to convert character to ascii digit"),
                         ));
 
-                        let Some((_, ch)) = self.it.next() else {
+                        let Some((_, ch)) = self.iter.next() else {
                             return TokenKind::Invalid;
                         };
 
@@ -201,7 +201,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn handle_class_or_escape_sequence(&mut self) -> TokenKind {
-        let Some((_, ch)) = self.it.next() else {
+        let Some((_, ch)) = self.iter.next() else {
             // The last token of the input was a '\', which should always be pared.
             return TokenKind::Invalid;
         };
@@ -253,7 +253,7 @@ impl<'a> Tokenizer<'a> {
                 // point of the escape sequence. This way control characters
                 // 1-26 can be used.
 
-                let (_, ch) = self.it.next()?;
+                let (_, ch) = self.iter.next()?;
 
                 match ch {
                     'a'..='z' | 'A'..='Z' => {
@@ -287,7 +287,7 @@ impl<'a> Tokenizer<'a> {
             'u' => {
                 // Two forms are possible, either `\uHHHH` or `\u{HHH}`.
 
-                let (_, ch) = self.it.next()?;
+                let (_, ch) = self.iter.next()?;
 
                 match ch {
                     '{' => {
@@ -303,7 +303,7 @@ impl<'a> Tokenizer<'a> {
 
                         let result = char::from_u32(character_code);
 
-                        let (_, last_bracket) = self.it.next()?;
+                        let (_, last_bracket) = self.iter.next()?;
 
                         if last_bracket == '}' {
                             result
@@ -352,7 +352,7 @@ impl<'a> Tokenizer<'a> {
             None => (0, 0),
         };
 
-        self.it
+        self.iter
             .by_ref()
             .cautious_map_while(|(_, ch)| ch.to_digit(16))
             .fold(Some((digit_count, start)), |acc, d| {
@@ -363,13 +363,13 @@ impl<'a> Tokenizer<'a> {
     /// Take all decimal characters from the input iterator even if they
     /// overflow the u32. If they overflow, return None.
     fn take_next_decimals_and_convert_to_u32(&mut self, start: Option<u32>) -> Option<u32> {
-        (&mut self.it)
+        (&mut self.iter)
             .cautious_map_while(|(_, ch)| ch.to_digit(10))
             .fold(start.or(Some(0)), |acc, d| Some(acc?.checked_mul(10)? + d))
     }
 
     fn get_token_end_cursor_pos(&mut self) -> usize {
-        match self.it.current() {
+        match self.iter.current() {
             Some((cursor_pos, _)) => cursor_pos + 1,
             None => 1,
         }
