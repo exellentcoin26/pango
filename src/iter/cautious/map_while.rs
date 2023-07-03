@@ -3,25 +3,27 @@
 
 use crate::iter::Peekableable;
 
-pub struct CautiousMapWhile<'a, P, Pr, T>
+pub struct CautiousMapWhile<'a, I, P, T>
 where
-    P: Peekableable,
-    Pr: Fn(&P::Item) -> Option<T>,
+    I: Peekableable,
+    P: Fn(&I::Item) -> Option<T>,
 {
-    iter: &'a mut P,
-    predicate: Pr,
+    iter: &'a mut I,
+    predicate: P,
 }
 
-pub trait CautiousMapWhileable<P: Peekableable, Pr, T>
+pub trait CautiousMapWhileable<I, P, T>
 where
-    Pr: Fn(&P::Item) -> Option<T>,
+    I: Peekableable,
+    P: Fn(&I::Item) -> Option<T>,
 {
-    fn cautious_map_while(&mut self, predicate: Pr) -> CautiousMapWhile<P, Pr, T>;
+    fn cautious_map_while(&mut self, predicate: P) -> CautiousMapWhile<I, P, T>;
 }
 
-impl<P: Peekableable, Pr, T> Iterator for CautiousMapWhile<'_, P, Pr, T>
+impl<I, P, T> Iterator for CautiousMapWhile<'_, I, P, T>
 where
-    Pr: Fn(&P::Item) -> Option<T>,
+    I: Peekableable,
+    P: Fn(&I::Item) -> Option<T>,
 {
     type Item = T;
 
@@ -41,11 +43,12 @@ where
     }
 }
 
-impl<P: Peekableable, Pr, T> CautiousMapWhileable<P, Pr, T> for &mut P
+impl<I, P, T> CautiousMapWhileable<I, P, T> for &mut I
 where
-    Pr: Fn(&P::Item) -> Option<T>,
+    I: Peekableable,
+    P: Fn(&I::Item) -> Option<T>,
 {
-    fn cautious_map_while(&mut self, predicate: Pr) -> CautiousMapWhile<P, Pr, T> {
+    fn cautious_map_while(&mut self, predicate: P) -> CautiousMapWhile<I, P, T> {
         CautiousMapWhile {
             iter: self,
             predicate,
