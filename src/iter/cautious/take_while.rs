@@ -1,25 +1,28 @@
 //! Cautious take while implementation making use of [`std::iter::Peekable`].
 //! Inspired by https://stackoverflow.com/questions/28776630/implementing-a-cautious-take-while-using-peekable
 
-use std::iter::Peekable;
+use crate::iter::Peekableable;
 
-pub struct CautiousTakeWhile<'a, I: Iterator, P>
+pub struct CautiousTakeWhile<'a, I, P>
 where
+    I: Peekableable,
     P: Fn(&I::Item) -> bool,
 {
-    iter: &'a mut Peekable<I>,
+    iter: &'a mut I,
     predicate: P,
 }
 
-pub trait CautiousTakeWhileable<I: Iterator, P>
+pub trait CautiousTakeWhileable<I, P>
 where
+    I: Peekableable,
     P: Fn(&I::Item) -> bool,
 {
     fn cautious_take_while(&mut self, predicate: P) -> CautiousTakeWhile<I, P>;
 }
 
-impl<I: Iterator, P> Iterator for CautiousTakeWhile<'_, I, P>
+impl<I, P> Iterator for CautiousTakeWhile<'_, I, P>
 where
+    I: Peekableable,
     P: Fn(&I::Item) -> bool,
 {
     type Item = I::Item;
@@ -38,8 +41,9 @@ where
     }
 }
 
-impl<I: Iterator, P> CautiousTakeWhileable<I, P> for &mut Peekable<I>
+impl<I, P> CautiousTakeWhileable<I, P> for &mut I
 where
+    I: Peekableable,
     P: Fn(&I::Item) -> bool,
 {
     fn cautious_take_while(&mut self, predicate: P) -> CautiousTakeWhile<I, P> {
