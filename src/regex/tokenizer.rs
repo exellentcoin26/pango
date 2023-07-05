@@ -9,14 +9,14 @@ pub struct Tokenizer<'a> {
     iter: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     /// Information about the kind of token along with the value of the token.
     /// The value can already be parsed (e.g. unicode escape sequences)
-    kind: TokenKind,
+    pub kind: TokenKind,
     /// Start and end position of the token in the input text. The end position
     /// is one further than the end of the current token.
-    pos: (usize, usize),
+    pub pos: (usize, usize),
 }
 
 impl Token {
@@ -25,7 +25,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     Class(ClassKind),
     Operator(OperatorKind),
@@ -34,7 +34,7 @@ pub enum TokenKind {
     Invalid,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClassKind {
     Wildcard,
     Word,
@@ -45,18 +45,18 @@ pub enum ClassKind {
     NonWhitespace,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperatorKind {
-    LeftSquareBracket,
-    RightSquareBracket,
+    LeftBracket,
+    RightBracket,
     LeftParen,
-    RightParan,
+    RightParen,
     Carret,
     Vertical,
     Minus,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantifierKind {
     Asterisk,
     Plus,
@@ -64,7 +64,7 @@ pub enum QuantifierKind {
     Range(QuantifierRangeKind),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantifierRangeKind {
     Max(u32),
     Min(u32),
@@ -106,10 +106,10 @@ impl<'a> Tokenizer<'a> {
 
     fn handle_operators(&self, ch: char) -> TokenKind {
         let operator_kind = match ch {
-            '[' => OperatorKind::LeftSquareBracket,
-            ']' => OperatorKind::RightSquareBracket,
+            '[' => OperatorKind::LeftBracket,
+            ']' => OperatorKind::RightBracket,
             '(' => OperatorKind::LeftParen,
-            ')' => OperatorKind::RightParan,
+            ')' => OperatorKind::RightParen,
             '^' => OperatorKind::Carret,
             '|' => OperatorKind::Vertical,
             '-' => OperatorKind::Minus,
@@ -546,10 +546,10 @@ mod tests {
     fn operators() {
         let tokenizer = Tokenizer::new("[]()^|-");
         let tokens = tokens![
-            (0, 1) => Operator(LeftSquareBracket),
-            (1, 2) => Operator(RightSquareBracket),
+            (0, 1) => Operator(LeftBracket),
+            (1, 2) => Operator(RightBracket),
             (2, 3) => Operator(LeftParen),
-            (3, 4) => Operator(RightParan),
+            (3, 4) => Operator(RightParen),
             (4, 5) => Operator(Carret),
             (5, 6) => Operator(Vertical),
             (6, 7) => Operator(Minus)
