@@ -152,8 +152,6 @@ pub struct CachedPeekable<I: Iterator> {
     iter: Peekable<I>,
     /// Remembers the item we last read (the item the iterator is currently "on").
     current: Option<Option<I::Item>>,
-    /// Remembers the item we peeked.
-    peeked: Option<Option<I::Item>>,
 }
 
 pub trait CachedPeekableable<I: Iterator> {
@@ -167,9 +165,7 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.current
-            .insert(self.peeked.take().unwrap_or_else(|| self.iter.next()))
-            .clone()
+        self.current.insert(self.iter.next()).clone()
     }
 }
 
@@ -187,7 +183,6 @@ impl<I: Iterator> CachedPeekableable<I> for I {
         CachedPeekable {
             iter: self.peekable(),
             current: None,
-            peeked: None,
         }
     }
 }
