@@ -1,17 +1,21 @@
 //! Regex recursive descent parser based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
 
-use super::tokenizer::{OperatorKind, Token, TokenKind, Tokenizer};
+use super::{
+    ast,
+    tokenizer::{OperatorKind, Token, TokenKind, Tokenizer},
+};
 use crate::iter::{CachedPeekable, CachedPeekableable, Peekableable};
 
 /// Recursive descent regex parser.
 pub struct Parser<'a> {
     /// Stream of tokens being parsed.
     tokens: CachedPeekable<Tokenizer<'a>>,
+    errors: Vec<ParseError>,
 }
 
-type ParseResult = core::result::Result<(), ParseError>;
+type ParseResult<T> = core::result::Result<T, Vec<ParseError>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParseError {
     message: String,
     pos: (usize, usize),
@@ -31,16 +35,32 @@ impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
             tokens: Tokenizer::new(input).cached_peekable(),
+            errors: Vec::new(),
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult {
-        self.expression()
+    pub fn parse(&mut self) -> ParseResult<ast::ExprKind> {
+        if self.tokens.peek().is_none() {
+            return Ok(ast::ExprKind::Empty);
+        }
+
+        match self.expression() {
+            Ok(ast) => Ok(ast),
+            Err(mut errs) => {
+                self.errors.append(&mut errs);
+                Err(self.errors.clone())
+            }
+        }
     }
 
     /// Rule: `expression ::= sub_expression (VERTICAL expression)?`
-    fn expression(&mut self) -> ParseResult {
-        self.sub_expression()?;
+    fn expression(&mut self) -> ParseResult<ast::ExprKind> {
+        let mut lhs = self.sub_expression()?;
+        let lhs = if lhs.len() == 1 {
+            lhs.remove(0)
+        } else {
+            ast::ExprKind::Concat(lhs)
+        };
 
         match self.tokens.peek() {
             Some(Token {
@@ -48,21 +68,25 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::Vertical),
             }) => {
                 self.tokens.next();
-                self.expression()
+                Ok(ast::ExprKind::Alt(
+                    Box::new(lhs),
+                    Box::new(self.expression()?),
+                ))
             }
-            _ => Ok(()),
+            _ => Ok(lhs),
         }
     }
 
     /// Rule: `sub_expression ::= sub_exrpession_item+`
-    fn sub_expression(&mut self) -> ParseResult {
+    fn sub_expression(&mut self) -> ParseResult<Vec<ast::ExprKind>> {
         if self.tokens.peek().is_none() {
-            return Err(ParseError {
+            return Err(vec![ParseError {
                 message: "expected at least one sub expression".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }]);
         }
 
+        let mut literals = Vec::new();
         while !matches!(
             self.tokens.peek(),
             Some(Token {
@@ -71,16 +95,16 @@ impl<'a> Parser<'a> {
                     | TokenKind::Operator(OperatorKind::RightParen)
             }) | None
         ) {
-            self.sub_expression_item()?;
+            literals.push(self.sub_expression_item()?);
         }
 
-        Ok(())
+        Ok(literals)
     }
 
     /// Rule: `sub_expression_item ::= match | group`
-    fn sub_expression_item(&mut self) -> ParseResult {
+    fn sub_expression_item(&mut self) -> ParseResult<ast::ExprKind> {
         let Some(Token {pos: _, kind}) = self.tokens.peek() else {
-            return Err(ParseError {message: "expected at least one token for the subexpression".to_string(), pos: self.get_current_token_position()})
+            return Err(vec![ParseError {message: "expected at least one token for the subexpression".to_string(), pos: self.get_current_token_position()}])
         };
 
         match kind {
@@ -90,7 +114,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Rule: `group ::= LEFT_PAREN expresion RIGHT_PAREN QUANTFIER?`
-    fn group(&mut self) -> ParseResult {
+    fn group(&mut self) -> ParseResult<ast::ExprKind> {
         // LEFT_PAREN
         if !matches!(
             self.tokens.next(),
@@ -99,14 +123,14 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::LeftParen)
             })
         ) {
-            return Err(ParseError {
+            return Err(vec![ParseError {
                 message: "expected LEFT_PAREN".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }]);
         }
 
         // expression
-        self.expression()?;
+        let expr = self.expression()?;
 
         // RIGHT_PAREN
         if !matches!(
@@ -116,47 +140,54 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::RightParen)
             })
         ) {
-            return Err(ParseError {
+            return Err(vec![ParseError {
                 message: "expected RIGTH_PAREN".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }]);
         }
 
         // QUANTIFIER
-        if let Some(Token {
-            pos: _,
-            kind: TokenKind::Quantifier(_),
-        }) = self.tokens.peek()
-        {
-            self.tokens.next();
+        let quantifier = match self.tokens.peek().copied() {
+            Some(Token {
+                pos: _,
+                kind: TokenKind::Quantifier(quant_kind),
+            }) => {
+                self.tokens.next();
+                Some(quant_kind)
+            }
+            _ => None,
         };
 
-        Ok(())
+        Ok(ast::ExprKind::Group(Box::new(expr), quantifier))
     }
 
     /// Rule: `match ::= match_item QUANTIFIER?`
-    fn match_(&mut self) -> ParseResult {
-        self.match_item()?;
+    fn match_(&mut self) -> ParseResult<ast::ExprKind> {
+        let literal = self.match_item()?;
 
-        if let Some(Token {
-            pos: _,
-            kind: TokenKind::Quantifier(_),
-        }) = self.tokens.peek()
-        {
-            self.tokens.next();
+        let quantifier = match self.tokens.peek().copied() {
+            Some(Token {
+                pos: _,
+                kind: TokenKind::Quantifier(quant_kind),
+            }) => {
+                self.tokens.next();
+                Some(quant_kind)
+            }
+            _ => None,
         };
 
-        Ok(())
+        Ok(ast::ExprKind::Lit(literal, quantifier))
     }
 
     /// Rule: `match_item ::= CHARACTER_CLASS | CHARACTER | character_group`
-    fn match_item(&mut self) -> ParseResult {
-        match self.tokens.peek() {
+    fn match_item(&mut self) -> ParseResult<ast::LiteralKind> {
+        let literal = match self.tokens.peek().copied() {
             Some(Token {
                 pos: _,
-                kind: TokenKind::Match(_),
+                kind: TokenKind::Match(match_),
             }) => {
                 self.tokens.next();
+                ast::LiteralKind::Match(match_)
             }
             Some(Token {
                 pos: _,
@@ -164,24 +195,25 @@ impl<'a> Parser<'a> {
             }) => self.character_group()?,
             Some(Token {
                 pos: _,
-                kind: TokenKind::Class(_),
+                kind: TokenKind::Class(kind),
             }) => {
                 self.tokens.next();
+                ast::LiteralKind::Class(kind)
             }
 
             _ => {
-                return Err(ParseError {
+                return Err(vec![ParseError {
                     message: "expected MATCH, CHARACTER_CLASS or LEFT_BRACKET".to_string(),
                     pos: self.get_current_token_position(),
-                });
+                }]);
             }
         };
 
-        Ok(())
+        Ok(literal)
     }
 
     /// Rule: `character_group ::= LEFT_BRACKET CARRET? character_group_item+ RIGHT_BRACKET`
-    fn character_group(&mut self) -> ParseResult {
+    fn character_group(&mut self) -> ParseResult<ast::LiteralKind> {
         // LEFT_BRACHET
         if !matches!(
             self.tokens.next(),
@@ -190,10 +222,10 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::LeftBracket)
             })
         ) {
-            return Err(ParseError {
+            return Err(vec![ParseError {
                 message: "expected LEFT_BRACKET".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }]);
         }
 
         // CARRET?
@@ -211,12 +243,13 @@ impl<'a> Parser<'a> {
         // character_group_item+
 
         if self.tokens.peek().is_none() {
-            return Err(ParseError {
+            return Err(vec![ParseError {
                 message: "expected at least one character group item".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }]);
         }
 
+        let mut literals = Vec::new();
         while let Some(token) = self.tokens.peek() {
             match *token {
                 Token {
@@ -226,21 +259,21 @@ impl<'a> Parser<'a> {
                     self.tokens.next();
                     break;
                 }
-                _ => self.character_group_item()?,
+                _ => literals.push(self.character_group_item()?),
             };
         }
 
-        Ok(())
+        Ok(ast::LiteralKind::Group { negated, literals })
     }
 
     /// Rule: `character_group_item ::= CHARACTER_CLASS | character_range | CHARACTER`
-    fn character_group_item(&mut self) -> ParseResult {
+    fn character_group_item(&mut self) -> ParseResult<ast::GroupedLiteralKind> {
         if let Some(Token { pos, kind }) = self.tokens.next() {
             use TokenKind::*;
 
-            match kind {
-                Class(_) => (),
-                Match(_) => {
+            let grouped_literal_kind = match kind {
+                Class(kind) => ast::GroupedLiteralKind::Class(kind),
+                Match(start) => {
                     // Regular character or character range
 
                     if let Some(Token {
@@ -250,36 +283,38 @@ impl<'a> Parser<'a> {
                     {
                         self.tokens.next();
 
-                        if !matches!(
-                            self.tokens.next(),
+                        match self.tokens.next() {
                             Some(Token {
                                 pos: _,
-                                kind: Match(_)
-                            })
-                        ) {
-                            return Err(ParseError {
-                                message: "expected MATCH".to_string(),
-                                pos: self.get_current_token_position(),
-                            });
+                                kind: Match(end),
+                            }) => ast::GroupedLiteralKind::Range(start, end),
+                            _ => {
+                                return Err(vec![ParseError {
+                                    message: "expected MATCH".to_string(),
+                                    pos: self.get_current_token_position(),
+                                }]);
+                            }
                         }
+                    } else {
+                        ast::GroupedLiteralKind::Match(start)
                     }
                 }
 
                 _ => {
-                    return Err(ParseError {
+                    return Err(vec![ParseError {
                         message: "expected CHARACTER_CLASS or CHARACTER".to_string(),
                         pos,
-                    })
+                    }])
                 }
-            }
+            };
+
+            Ok(grouped_literal_kind)
         } else {
-            return Err(ParseError {
+            Err(vec![ParseError {
                 message: "expected at least one token for the character group item".to_string(),
                 pos: self.get_current_token_position(),
-            });
+            }])
         }
-
-        Ok(())
     }
 
     fn get_current_token_position(&mut self) -> (usize, usize) {
