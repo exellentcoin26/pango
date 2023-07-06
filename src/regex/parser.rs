@@ -1,10 +1,10 @@
-//! Regex recursive descent parser based on the following grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
+//! Regex recursive descent parser based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
 
 use super::tokenizer::{OperatorKind, Token, TokenKind, Tokenizer};
 use crate::iter::{CachedPeekable, CachedPeekableable, Peekableable};
 
 /// Recursive descent regex parser.
-struct Parser<'a> {
+pub struct Parser<'a> {
     /// Stream of tokens being parsed.
     tokens: CachedPeekable<Tokenizer<'a>>,
 }
@@ -12,9 +12,19 @@ struct Parser<'a> {
 type ParseResult = core::result::Result<(), ParseError>;
 
 #[derive(Debug)]
-struct ParseError {
+pub struct ParseError {
     message: String,
     pos: (usize, usize),
+}
+
+impl core::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[ERROR] ({}, {}): {}",
+            self.pos.0, self.pos.1, self.message
+        )
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -79,7 +89,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Rule: `LEFT_PAREN expresion RIGHT_PAREN QUANTFIER?`
+    /// Rule: `group ::= LEFT_PAREN expresion RIGHT_PAREN QUANTFIER?`
     fn group(&mut self) -> ParseResult {
         // LEFT_PAREN
         if !matches!(
@@ -124,7 +134,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Rule: `match_item QUANTIFIER?`
+    /// Rule: `match ::= match_item QUANTIFIER?`
     fn match_(&mut self) -> ParseResult {
         self.match_item()?;
 
@@ -170,7 +180,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Rule: `LEFT_BRACKET CARRET? character_group_item+ RIGHT_BRACKET`
+    /// Rule: `character_group ::= LEFT_BRACKET CARRET? character_group_item+ RIGHT_BRACKET`
     fn character_group(&mut self) -> ParseResult {
         // LEFT_BRACHET
         if !matches!(
@@ -223,7 +233,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    /// Rule: `character_group_item ::= CHARACTER_CLASS | CHARACTER_RANGE | CHARACTER`
+    /// Rule: `character_group_item ::= CHARACTER_CLASS | character_range | CHARACTER`
     fn character_group_item(&mut self) -> ParseResult {
         if let Some(Token { pos, kind }) = self.tokens.next() {
             use TokenKind::*;

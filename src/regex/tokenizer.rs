@@ -3,6 +3,7 @@ use std::{iter::Enumerate, str::Chars};
 
 pub struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
+    #[allow(unused)]
     input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
