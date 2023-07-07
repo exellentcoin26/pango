@@ -348,4 +348,11 @@ mod tests {
         let mut parser = Parser::new(r"\w\d[q-z](0|4+)*.🙃#");
         parser.parse().unwrap();
     }
+
+    #[test]
+    fn foo() {
+        let mut parser = Parser::new(r"¡0¡¡¡¡(\\)¡¡0");
+        // dbg!(parser.tokens.collect::<Vec<_>>());
+        parser.parse().unwrap();
+    }
 }

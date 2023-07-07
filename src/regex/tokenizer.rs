@@ -1,5 +1,11 @@
+// TODO: Do not parse quantifiers here. This disallows use of special
+// characters like `{` and `}` in character groups.
+
 use crate::iter::{CachedPeekable, CachedPeekableable, CautiousMapWhileable};
 use std::{iter::Enumerate, str::Chars};
+
+#[cfg(test)]
+use proptest_derive::Arbitrary;
 
 pub struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
@@ -36,6 +42,7 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum ClassKind {
     Wildcard,
     Word,
@@ -58,6 +65,7 @@ pub enum OperatorKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum QuantifierKind {
     Asterisk,
     Plus,
@@ -66,6 +74,7 @@ pub enum QuantifierKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum QuantifierRangeKind {
     Max(u32),
     Min(u32),

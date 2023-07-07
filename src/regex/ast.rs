@@ -1,6 +1,7 @@
 //! Regex ast based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
 //!
 //! # Grammar
+//!
 //! ```ebnf
 //!     expression ::= sub_expression (VERTICAL expression)?;
 //!     sub_expression ::= sub_exrpession_item+;

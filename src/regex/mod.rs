@@ -1,5 +1,8 @@
+pub use parser::Parser;
+
 mod ast;
 mod parser;
 mod tokenizer;
 
-pub use parser::Parser;
+#[cfg(test)]
+mod tests;
