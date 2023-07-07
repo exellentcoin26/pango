@@ -1,0 +1,25 @@
+# ref: https://docs.codecov.com/docs/codecovyml-reference
+coverage:
+  range: 75..100
+  round: down
+  precision: 1
+  status:
+    # ref: https://docs.codecov.com/docs/commit-status
+    changes: false
+    default_rules:
+      flag_coverage_not_uploaded_behavior: include
+    patch: true
+    project:
+      default:
+        # Avoid false negatives
+        threshold: 1%
+
+github_checks:
+  annotations: true
+
+# Test files aren't important for coverage
+ignore:
+  - "tests"
+
+comment:
+  require_changes: true
