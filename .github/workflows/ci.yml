@@ -45,8 +45,7 @@ jobs:
           uses: dtolnay/rust-toolchain@stable
 
         - name: Run proptests
-          run: cargo test --tests proptest --locked -- --ignored
-
+          run: cargo test --locked proptest -- --ignored
 
     rustfmt:
       name: rustfmt
@@ -62,3 +61,32 @@ jobs:
 
         - name: Check formatting
           run: cargo fmt --all -- --check
+
+    codecov:
+      name: codecov
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+
+        - name: Install rust toolchain
+          uses: dtolnay/rust-toolchain@stable
+
+        - name: Install cargo-llvm-cov
+          uses: taiki-e/install-action@cargo-llvm-cov
+
+        - name: Coverage for regular tests
+          run: cargo llvm-cov --locked --all-features --no-report --release
+
+        - name: Coverage for proptests
+          run: cargo llvm-cov --locked --all-features --no-report --release -- proptest --ignored
+
+        - name: Report code coverage
+          run: cargo llvm-cov report --release --codecov --output-path codecov.json
+
+        - name: Upload report to codecov
+          uses: codecov/codecov-action@v3
+          with:
+            token: ${{ secrets.CODECOV_TOKEN }}
+            verbose: true
+            fail_ci_if_error: true
