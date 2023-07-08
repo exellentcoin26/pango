@@ -53,3 +53,22 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CautiousTakeWhileable;
+
+    #[test]
+    fn cautious_take_while() {
+        let mut it = "foobar!".chars().peekable();
+
+        let first = it
+            .by_ref()
+            .cautious_take_while(|i| *i != 'b')
+            .collect::<Vec<_>>();
+        assert_eq!(first.len(), 3);
+        assert_eq!(first.last(), Some(&'o'));
+
+        assert_eq!(it.next(), Some('b'));
+    }
+}

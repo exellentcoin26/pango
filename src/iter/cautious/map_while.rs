@@ -55,3 +55,25 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CautiousMapWhileable;
+
+    #[test]
+    fn cautious_map_while() {
+        let mut it = "foobar!".chars().peekable();
+
+        let first = it
+            .by_ref()
+            .cautious_map_while(|i| match *i != 'b' {
+                true => Some('c'),
+                false => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(first.len(), 3);
+        assert_eq!(first.last(), Some(&'c'));
+
+        assert_eq!(it.next(), Some('b'));
+    }
+}
