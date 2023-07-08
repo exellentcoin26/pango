@@ -75,5 +75,15 @@ mod tests {
         assert_eq!(first.last(), Some(&'c'));
 
         assert_eq!(it.next(), Some('b'));
+        assert_eq!(
+            it.by_ref()
+                .cautious_map_while(|n| match *n != '\n' {
+                    true => Some('c'),
+                    false => None,
+                })
+                .collect::<Vec<_>>()
+                .len(),
+            3
+        );
     }
 }
