@@ -15,9 +15,11 @@
 
 use super::tokenizer;
 
-/// Regular expression ast.
+pub(crate) struct Ast(pub(crate) ExprKind);
+
+/// Regular expression kind.
 #[derive(Debug, Clone)]
-pub enum ExprKind {
+pub(crate) enum ExprKind {
     /// Concatenation of regular expressions.
     Concat(Vec<ExprKind>),
     /// An empty regex expresion.
@@ -32,7 +34,7 @@ pub enum ExprKind {
 
 /// Literal kind that appears in an expression (e.g., `b`, `[^ab]`).
 #[derive(Debug, Clone)]
-pub enum LiteralKind {
+pub(crate) enum LiteralKind {
     /// A single token (unicode character constructs can consist multiple characters).
     Match(char),
     /// A shorthand for character groups (e.g., `\w`, `\D`, `.`).
@@ -46,7 +48,7 @@ pub enum LiteralKind {
 
 /// literal that appears in a group.
 #[derive(Debug, Clone, Copy)]
-pub enum GroupedLiteralKind {
+pub(crate) enum GroupedLiteralKind {
     /// A single token (unicode character constructs can consist multiple characters).
     Match(char),
     /// A shorthand for character groups (e.g., `\w`, `\D`, `.`).

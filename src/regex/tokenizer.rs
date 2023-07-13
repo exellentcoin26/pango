@@ -7,33 +7,33 @@ use std::{iter::Enumerate, str::Chars};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-pub struct Tokenizer<'a> {
+pub(super) struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
     #[allow(unused)]
-    input: &'a str,
+    pub(super) input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
     iter: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Token {
+pub(super) struct Token {
     /// Information about the kind of token along with the value of the token.
     /// The value can already be parsed (e.g. unicode escape sequences)
-    pub kind: TokenKind,
+    pub(super) kind: TokenKind,
     /// Start and end position of the token in the input text. The end position
     /// is one further than the end of the current token.
-    pub pos: (usize, usize),
+    pub(super) pos: (usize, usize),
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, pos: (usize, usize)) -> Self {
+    pub(super) fn new(kind: TokenKind, pos: (usize, usize)) -> Self {
         Self { kind, pos }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenKind {
+pub(super) enum TokenKind {
     Class(ClassKind),
     Operator(OperatorKind),
     Quantifier(QuantifierKind),
@@ -43,7 +43,7 @@ pub enum TokenKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum ClassKind {
+pub(crate) enum ClassKind {
     Wildcard,
     Word,
     Whitespace,
@@ -54,7 +54,7 @@ pub enum ClassKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OperatorKind {
+pub(super) enum OperatorKind {
     LeftBracket,
     RightBracket,
     LeftParen,
@@ -66,7 +66,7 @@ pub enum OperatorKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum QuantifierKind {
+pub(crate) enum QuantifierKind {
     Asterisk,
     Plus,
     QuestionMark,
@@ -75,7 +75,7 @@ pub enum QuantifierKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum QuantifierRangeKind {
+pub(crate) enum QuantifierRangeKind {
     Max(u32),
     Min(u32),
     Range(u32, u32),
@@ -107,7 +107,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub(super) fn new(input: &'a str) -> Self {
         Self {
             input,
             iter: input.chars().enumerate().cached_peekable(),
