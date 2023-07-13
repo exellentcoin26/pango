@@ -1,4 +1,3 @@
-pub use regex::Parser as Regex;
-
+mod fsm;
 mod iter;
 mod regex;
