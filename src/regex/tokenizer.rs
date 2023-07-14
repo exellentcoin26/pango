@@ -41,7 +41,7 @@ pub(super) enum TokenKind {
     Invalid,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum ClassKind {
     Wildcard,

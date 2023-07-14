@@ -33,7 +33,7 @@ pub(crate) enum ExprKind {
 }
 
 /// Literal kind that appears in an expression (e.g., `b`, `[^ab]`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum LiteralKind {
     /// A single token (unicode character constructs can consist multiple characters).
     Match(char),
@@ -47,7 +47,7 @@ pub(crate) enum LiteralKind {
 }
 
 /// literal that appears in a group.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum GroupedLiteralKind {
     /// A single token (unicode character constructs can consist multiple characters).
     Match(char),
