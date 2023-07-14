@@ -6,8 +6,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-    pango-test:
-      name: pango-test
+    test:
+      name: test
       runs-on: ${{ matrix.os }}
 
       strategy:
@@ -61,6 +61,27 @@ jobs:
 
         - name: Check formatting
           run: cargo fmt --all -- --check
+
+    clippy:
+      name: clippy
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+        checks: write
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v3
+
+        - name: Install rust toolchain
+          uses: dtolnay/rust-toolchain@stable
+          with:
+            components: clippy
+
+        - name: Clippy linting
+          uses: actions-rs/clippy-check@v1
+          with:
+            token: ${{ secrets.GITHUB_TOKEN }}
+            args: --all-features
 
     codecov:
       name: codecov
