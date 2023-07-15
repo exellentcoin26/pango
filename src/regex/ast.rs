@@ -47,7 +47,7 @@ pub(crate) enum LiteralKind {
 }
 
 /// literal that appears in a group.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum GroupedLiteralKind {
     /// A single token (unicode character constructs can consist multiple characters).
     Match(char),

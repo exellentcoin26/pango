@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use crate::regex::{
     ast::{self, Ast, ExprKind},
     tokenizer::QuantifierKind,
@@ -33,6 +31,50 @@ impl Default for Nfa {
 impl Nfa {
     fn builder(start_state_final: bool) -> NfaBuilder {
         NfaBuilder::new(start_state_final)
+    }
+
+    fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
+        self.states
+            .iter()
+            .filter_map(|s| if s.fin { Some(s.id) } else { None })
+    }
+
+    /// Converts the NFA to dot language using the grahviz dot language format.
+    fn to_dot(&self) -> String {
+        let transition_dot = self
+            .states
+            .iter()
+            .flat_map(|state| {
+                state
+                    .transitions
+                    .iter()
+                    .flat_map(move |(input, dest_states)| {
+                        dest_states.iter().map(move |dest| {
+                            format!("{} -> {} [label = \"{:?}\"]\n", state.id, dest, input)
+                        })
+                    })
+            })
+            .collect::<String>();
+
+        let final_dot = format!(
+            "node [shape = doublecircle]; {}",
+            self.get_final_states()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+                .join(" ")
+        );
+
+        format!(
+            "digraph nfa {{\n\
+                \trankdir = LR;\n\
+            \n\
+                \t{}\n\
+                \tnode [shape = circle]
+            \n\
+                \t{}\n\
+            }}",
+            final_dot, transition_dot
+        )
     }
 }
 
@@ -100,11 +142,10 @@ impl NfaBuilder {
         }
     }
 
-    fn get_final_states(&self) -> Vec<StateId> {
+    fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
         self.states
             .iter()
             .filter_map(|s| if s.fin { Some(s.id) } else { None })
-            .collect()
     }
 
     fn with_state(mut self, fin: bool) -> Self {
@@ -153,17 +194,13 @@ impl Compiler {
     }
 
     fn compile(mut self, expr: &ExprKind) -> Nfa {
-        self.expr(
-            expr,
-            self.nfa.start_state,
-            Some(
-                *self
-                    .nfa
-                    .get_final_states()
-                    .first()
-                    .expect("exected at least one final state for the NFA to start with"),
-            ),
-        );
+        let end_state = self
+            .nfa
+            .get_final_states()
+            .next()
+            .expect("exected at least one final state for the NFA to start with");
+
+        self.expr(expr, self.nfa.start_state, Some(end_state));
         self.nfa.build()
     }
 
@@ -194,13 +231,43 @@ impl Compiler {
                 self.expr(lhs, start, end);
                 self.expr(rhs, start, end);
             }
-            ExprKind::Lit(lit, quantifier) => {
+            ExprKind::Lit(lit, _quantifier) => {
                 // TODO: Decide on how to implement quantification of states. Right now I think it
                 // might be possible to combine quantifiers and take min/max values of the range
                 // values to decide the new quantifier.
-                todo!()
+
+                let dest_state = match end {
+                    Some(dest) => dest,
+                    None => self.nfa.add_state(false),
+                };
+
+                self.nfa.add_transition(start, dest_state, lit.clone());
             }
-            ExprKind::Group(expr, quantifier) => todo!(),
+            ExprKind::Group(expr, _quantifier) => {
+                // TODO: Decide on how to implement quantification of expressions. A quantification
+                // can be expressed as a wrapped expression with a gateway state that counts how
+                // many times it is passed and can both go to the end state for the quantification
+                // wrapper and redo the expression when the quantification is still or not yet
+                // valid.
+
+                self.expr(expr, start, end);
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod foo {
+    use super::Nfa;
+    use crate::regex::ast::LiteralKind;
+
+    #[test]
+    fn to_dot() {
+        let nfa = Nfa::builder(false)
+            .with_state(true)
+            .with_transition(0, 1, LiteralKind::Match('a'))
+            .build();
+
+        println!("{}", nfa.to_dot());
     }
 }
