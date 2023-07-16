@@ -1,7 +1,7 @@
 //! Regex recursive descent parser based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
 
 use super::{
-    ast,
+    ast::{self, Ast},
     tokenizer::{OperatorKind, Token, TokenKind, Tokenizer},
 };
 use crate::iter::{CachedPeekable, CachedPeekableable, Peekableable};
@@ -39,13 +39,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> ParseResult<ast::ExprKind> {
+    pub(crate) fn parse(&mut self) -> ParseResult<ast::Ast> {
         if self.tokens.peek().is_none() {
-            return Ok(ast::ExprKind::Empty);
+            return Ok(Ast(ast::ExprKind::Empty));
         }
 
         match self.expression() {
-            Ok(ast) => Ok(ast),
+            Ok(expr) => Ok(Ast(expr)),
             Err(mut errs) => {
                 self.errors.append(&mut errs);
                 Err(self.errors.clone())

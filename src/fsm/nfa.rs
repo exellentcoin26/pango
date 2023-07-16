@@ -21,10 +21,7 @@ struct State {
 
 impl Default for Nfa {
     fn default() -> Self {
-        Self {
-            start_state: 0,
-            states: Vec::from([State::with_id(0, false), State::with_id(1, true)]),
-        }
+        NfaBuilder::new(false).with_state(true).build()
     }
 }
 
@@ -69,11 +66,16 @@ impl Nfa {
                 \trankdir = LR;\n\
             \n\
                 \t{}\n\
-                \tnode [shape = circle]
+                \tnode [shape = circle]; 0
             \n\
-                \t{}\n\
+                {}\n\
             }}",
-            final_dot, transition_dot
+            final_dot,
+            transition_dot
+                .lines()
+                .map(|l| format!("\t{}", l))
+                .collect::<Vec<String>>()
+                .join("\n")
         )
     }
 }
@@ -200,21 +202,24 @@ impl Compiler {
             .next()
             .expect("exected at least one final state for the NFA to start with");
 
-        self.expr(expr, self.nfa.start_state, Some(end_state));
+        self.expr(expr, self.nfa.start_state, end_state);
         self.nfa.build()
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    fn expr(&mut self, expr: &ExprKind, start: StateId, end: Option<StateId>) {
+    fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
         match expr {
             ExprKind::Concat(exprs) => {
                 // Run once for the first expression so that it is connected to the expected start
                 // state. Run the intermediate expressions to connect them in a chain. Run once for
                 // the last expression so it is connected to the expected end state.
-                let current_state = start;
+
+                let mut current_state = start;
 
                 for expr in exprs.iter().take(exprs.len() - 1) {
-                    self.expr(expr, current_state, None)
+                    let new_state = self.nfa.add_state(false);
+                    self.expr(expr, current_state, new_state);
+                    current_state = new_state;
                 }
 
                 self.expr(
@@ -236,12 +241,7 @@ impl Compiler {
                 // might be possible to combine quantifiers and take min/max values of the range
                 // values to decide the new quantifier.
 
-                let dest_state = match end {
-                    Some(dest) => dest,
-                    None => self.nfa.add_state(false),
-                };
-
-                self.nfa.add_transition(start, dest_state, lit.clone());
+                self.nfa.add_transition(start, end, lit.clone());
             }
             ExprKind::Group(expr, _quantifier) => {
                 // TODO: Decide on how to implement quantification of expressions. A quantification
@@ -259,15 +259,18 @@ impl Compiler {
 #[cfg(test)]
 mod foo {
     use super::Nfa;
-    use crate::regex::ast::LiteralKind;
+    use crate::regex::parser::Parser;
 
     #[test]
     fn to_dot() {
-        let nfa = Nfa::builder(false)
-            .with_state(true)
-            .with_transition(0, 1, LiteralKind::Match('a'))
-            .build();
-
-        println!("{}", nfa.to_dot());
+        println!(
+            "{}",
+            Nfa::from(Parser::new("(ab)c🔥🌘").parse().unwrap()).to_dot()
+        );
+        println!("{}", Nfa::from(Parser::new("").parse().unwrap()).to_dot());
+        println!(
+            "{}",
+            Nfa::from(Parser::new("((a|b)c🔥🌘|foo)").parse().unwrap()).to_dot()
+        );
     }
 }

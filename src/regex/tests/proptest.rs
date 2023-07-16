@@ -41,7 +41,7 @@ impl ToString for ClassKind {
         use ClassKind::*;
         match *self {
             Wildcard => ".",
-            Word => r"w",
+            Word => r"\w",
             Whitespace => r"\s",
             Digit => r"\d",
             NonWord => r"\W",
@@ -171,7 +171,7 @@ fn arb_expr_kind() -> impl Strategy<Value = ExprKind> {
 }
 
 proptest! {
-    // In `release builds, 10000 tests takes about 2.5 seconds without coverage.
+    // In release builds, 10000 tests takes about 2.5 seconds without coverage.
     #![proptest_config(ProptestConfig::with_cases(10000))]
 
     #[test]
