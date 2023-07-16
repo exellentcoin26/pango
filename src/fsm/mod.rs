@@ -1,1 +1,2 @@
 mod nfa;
+mod traits;

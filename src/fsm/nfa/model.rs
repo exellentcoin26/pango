@@ -6,7 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 type StateId = usize;
 
-struct Nfa {
+pub(super) struct Nfa {
     start_state: StateId,
     states: Vec<State>,
 }
