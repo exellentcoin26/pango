@@ -5,7 +5,6 @@ use crate::regex::{
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 type StateId = usize;
-type Input = ast::LiteralKind;
 
 struct Nfa {
     start_state: StateId,
@@ -19,6 +18,12 @@ struct State {
     quantifier: Option<QuantifierKind>,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum Input {
+    Literal(ast::LiteralKind),
+    Eps,
+}
+
 impl Default for Nfa {
     fn default() -> Self {
         NfaBuilder::new(false).with_state(true).build()
@@ -30,10 +35,8 @@ impl Nfa {
         NfaBuilder::new(start_state_final)
     }
 
-    fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
-        self.states
-            .iter()
-            .filter_map(|s| if s.fin { Some(s.id) } else { None })
+    fn get_final_states(&self) -> impl Iterator<Item = &State> + '_ {
+        self.states.iter().filter(|s| s.fin)
     }
 
     /// Converts the NFA to dot language using the grahviz dot language format.
@@ -56,7 +59,7 @@ impl Nfa {
         let final_dot = format!(
             "node [shape = doublecircle]; {}",
             self.get_final_states()
-                .map(|s| s.to_string())
+                .map(|s| s.id.to_string())
                 .collect::<Vec<String>>()
                 .join(" ")
         );
@@ -97,6 +100,10 @@ impl State {
 
     fn with_id(id: StateId, fin: bool) -> Self {
         Self::new(id, HashMap::new(), fin, None)
+    }
+
+    fn with_id_and_quantifier(id: StateId, fin: bool, quantifier: QuantifierKind) -> Self {
+        Self::new(id, HashMap::new(), fin, Some(quantifier))
     }
 }
 
@@ -166,6 +173,13 @@ impl NfaBuilder {
         id
     }
 
+    fn add_state_with_quantifier(&mut self, fin: bool, quantifier: QuantifierKind) -> StateId {
+        let id = self.new_state_id();
+        self.states
+            .push(State::with_id_and_quantifier(id, fin, quantifier));
+        id
+    }
+
     fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
         self.states
             .get_mut(start)
@@ -183,6 +197,7 @@ impl NfaBuilder {
     }
 }
 
+// Regex AST to NFA compiler.
 struct Compiler {
     /// Current NFA being compiled from the regex syntax tree.
     nfa: NfaBuilder,
@@ -230,25 +245,46 @@ impl Compiler {
                     end,
                 )
             }
-            ExprKind::Empty => (),
+            ExprKind::Empty => self.nfa.add_transition(start, end, Input::Eps),
             ExprKind::Alt(lhs, rhs) => {
                 // Connect both the expect start and end state
                 self.expr(lhs, start, end);
                 self.expr(rhs, start, end);
             }
-            ExprKind::Lit(lit, _quantifier) => {
+            ExprKind::Lit(lit, quantifier) => {
                 // TODO: Decide on how to implement quantification of states. Right now I think it
                 // might be possible to combine quantifiers and take min/max values of the range
                 // values to decide the new quantifier.
+                //
+                // Quantification can be implemented using an extra gateway state and a
 
-                self.nfa.add_transition(start, end, lit.clone());
+                let start = match quantifier {
+                    Some(quantifier) => {
+                        let new_start = self.nfa.add_state_with_quantifier(false, *quantifier);
+                        self.nfa.add_transition(start, new_start, Input::Eps);
+                        new_start
+                    }
+                    None => start,
+                };
+
+                self.nfa
+                    .add_transition(start, end, Input::Literal(lit.clone()));
             }
-            ExprKind::Group(expr, _quantifier) => {
+            ExprKind::Group(expr, quantifier) => {
                 // TODO: Decide on how to implement quantification of expressions. A quantification
                 // can be expressed as a wrapped expression with a gateway state that counts how
                 // many times it is passed and can both go to the end state for the quantification
                 // wrapper and redo the expression when the quantification is still or not yet
                 // valid.
+
+                let start = match quantifier {
+                    Some(quantifier) => {
+                        let new_start = self.nfa.add_state_with_quantifier(false, *quantifier);
+                        self.nfa.add_transition(start, new_start, Input::Eps);
+                        new_start
+                    }
+                    None => start,
+                };
 
                 self.expr(expr, start, end);
             }
