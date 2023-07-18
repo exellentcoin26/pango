@@ -14,6 +14,7 @@
 //! ```
 
 use super::tokenizer;
+use crate::prelude::*;
 
 pub(crate) struct Ast(pub(crate) ExprKind);
 
@@ -42,7 +43,7 @@ pub(crate) enum LiteralKind {
     /// A group of characters (e.g. `[^a-cl47i]`).
     Group {
         negated: bool,
-        literals: Vec<GroupedLiteralKind>,
+        literals: W<Vec<GroupedLiteralKind>>,
     },
 }
 
@@ -55,4 +56,33 @@ pub(crate) enum GroupedLiteralKind {
     Class(tokenizer::ClassKind),
     /// A character range (e.g., `0-1`, `a-z`).
     Range(char, char),
+}
+
+impl LiteralKind {
+    pub(crate) fn contains(&self, c: char) -> bool {
+        match self {
+            LiteralKind::Match(m) => *m == c,
+            LiteralKind::Class(class) => class.contains(c),
+            LiteralKind::Group { negated, literals } => {
+                // `negated` acts as a switch which is exactly what the XOR operation does.
+                literals.contains(c) ^ negated
+            }
+        }
+    }
+}
+
+impl W<Vec<GroupedLiteralKind>> {
+    fn contains(&self, c: char) -> bool {
+        self.0.iter().any(|l| l.contains(c))
+    }
+}
+
+impl GroupedLiteralKind {
+    fn contains(&self, c: char) -> bool {
+        match *self {
+            GroupedLiteralKind::Match(m) => m == c,
+            GroupedLiteralKind::Class(class) => class.contains(c),
+            GroupedLiteralKind::Range(begin, end) => (begin..=end).contains(&c),
+        }
+    }
 }

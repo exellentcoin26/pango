@@ -5,12 +5,12 @@ pub(super) trait Simulateable {
     where
         Self: Sized,
     {
-        let accept = self.start_closure();
+        let accept = self.is_accepting();
         input.chars().map(|c| self.feed(c)).last().unwrap_or(accept)
     }
 
-    /// Returns whether the epsilon closure of the start state has an accepting state.
-    fn start_closure(&self) -> bool;
+    /// Returns whether the finite-state machine accepts when no input is given.
+    fn is_accepting(&self) -> bool;
 
     /// Feeds a single character to the finite-state machine and returns whether it has reached an
     /// accepting state.

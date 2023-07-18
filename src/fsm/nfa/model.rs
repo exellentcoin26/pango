@@ -2,24 +2,41 @@ use crate::regex::{
     ast::{self, Ast, ExprKind},
     tokenizer::QuantifierKind,
 };
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
-type StateId = usize;
+// TODO: Refactor quantifiers and destination states of the quantifier to be more readable in
+// function definitions.
+
+// TODO (IMPORTANT): Quantifier guard states should have an end guard as well. This will always go
+// back to the begin guard which can then decide to continue or to redo the quantified part. Right
+// now, quantified expressions can reach the final state no matter what the quantifier is for the
+// expression.
+
+pub(super) type StateId = usize;
 
 pub(super) struct Nfa {
-    start_state: StateId,
-    states: Vec<State>,
+    pub(super) start_state: StateId,
+    pub(super) states: Vec<State>,
 }
 
-struct State {
-    id: usize,
-    fin: bool,
-    transitions: HashMap<Input, BTreeSet<StateId>>,
-    quantifier: Option<QuantifierKind>,
+#[derive(PartialEq, Eq)]
+pub(super) struct State {
+    /// Id of the state used by other states as a pointer.
+    pub(super) id: StateId,
+    /// Whether the state is final.
+    pub(super) fin: bool,
+    /// Transitions to other states that can be made based on an input.
+    pub(super) transitions: HashMap<Input, HashSet<StateId>>,
+    /// Whether the state is a quantifier guard. If it is, what is the quantifier and if the
+    /// quantifier is satisfied, what shortcut in the NFA can be taken to "fullfil" the quantifier.
+    ///
+    /// Note: The transition that is used as the shortcut does not need to be inserted into the map of
+    /// transitions.
+    pub(super) quantifier: Option<(QuantifierKind, StateId)>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-enum Input {
+pub(super) enum Input {
     Literal(ast::LiteralKind),
     Eps,
 }
@@ -39,7 +56,46 @@ impl Nfa {
         self.states.iter().filter(|s| s.fin)
     }
 
+    /// Returns an iterator over references to all states in the epsilon closure of the given
+    /// state.
+    pub(super) fn eps_closure(&self, state_id: StateId) -> impl Iterator<Item = &State> {
+        let state = self
+            .states
+            .iter()
+            .find(|s| s.id == state_id)
+            .expect("state should always exist");
+
+        let mut not_visited = VecDeque::from([state]);
+        let mut result = BTreeSet::from([state]);
+
+        while let Some(state) = not_visited.pop_front() {
+            let new_states = state
+                .transitions
+                .iter()
+                .filter_map(|(input, states)| {
+                    if *input == Input::Eps {
+                        Some(states.iter().map(|state_id| {
+                            self.states
+                                .iter()
+                                .find(|state| state.id == *state_id)
+                                .expect("state should always exist otherwise the NFA is invalid")
+                        }))
+                    } else {
+                        None
+                    }
+                })
+                .flatten();
+
+            // This clone _should_ be cheap, as it is a clone of references and not actual states.
+            not_visited.extend(new_states.clone());
+            result.extend(new_states);
+        }
+
+        result.into_iter()
+    }
+
     /// Converts the NFA to dot language using the grahviz dot language format.
+    #[allow(unused)]
     fn to_dot(&self) -> String {
         let transition_dot = self
             .states
@@ -50,7 +106,7 @@ impl Nfa {
                     .iter()
                     .flat_map(move |(input, dest_states)| {
                         dest_states.iter().map(move |dest| {
-                            format!("{} -> {} [label = \"{:?}\"]\n", state.id, dest, input)
+                            format!("{} -> {} [label = \"{:?}\"];\n", state.id, dest, input)
                         })
                     })
             })
@@ -64,16 +120,31 @@ impl Nfa {
                 .join(" ")
         );
 
+        let guard_dot = self
+            .states
+            .iter()
+            .filter_map(|s| {
+                s.quantifier
+                    .map(|q| format!("{} [label = \"{} ({:?})\"];\n", s.id, s.id, q))
+            })
+            .collect::<String>();
+
         format!(
             "digraph nfa {{\n\
                 \trankdir = LR;\n\
             \n\
                 \t{}\n\
-                \tnode [shape = circle]; 0
+                {}\n\
+                \tnode [shape = circle]; 0;\n\
             \n\
                 {}\n\
             }}",
             final_dot,
+            guard_dot
+                .lines()
+                .map(|l| format!("\t{}", l))
+                .collect::<Vec<String>>()
+                .join("\n"),
             transition_dot
                 .lines()
                 .map(|l| format!("\t{}", l))
@@ -83,12 +154,21 @@ impl Nfa {
     }
 }
 
+impl Input {
+    pub(crate) fn can_take(&self, input: char) -> bool {
+        match self {
+            Input::Literal(lit) => lit.contains(input),
+            Input::Eps => false,
+        }
+    }
+}
+
 impl State {
     fn new(
         id: StateId,
-        transitions: HashMap<Input, BTreeSet<StateId>>,
+        transitions: HashMap<Input, HashSet<StateId>>,
         fin: bool,
-        quantifier: Option<QuantifierKind>,
+        quantifier: Option<(QuantifierKind, StateId)>,
     ) -> Self {
         Self {
             id,
@@ -102,7 +182,11 @@ impl State {
         Self::new(id, HashMap::new(), fin, None)
     }
 
-    fn with_id_and_quantifier(id: StateId, fin: bool, quantifier: QuantifierKind) -> Self {
+    fn with_id_and_quantifier(
+        id: StateId,
+        fin: bool,
+        quantifier: (QuantifierKind, StateId),
+    ) -> Self {
         Self::new(id, HashMap::new(), fin, Some(quantifier))
     }
 }
@@ -173,7 +257,11 @@ impl NfaBuilder {
         id
     }
 
-    fn add_state_with_quantifier(&mut self, fin: bool, quantifier: QuantifierKind) -> StateId {
+    fn add_state_with_quantifier(
+        &mut self,
+        fin: bool,
+        quantifier: (QuantifierKind, StateId),
+    ) -> StateId {
         let id = self.new_state_id();
         self.states
             .push(State::with_id_and_quantifier(id, fin, quantifier));
@@ -186,7 +274,7 @@ impl NfaBuilder {
             .expect("state index does not exist")
             .transitions
             .entry(input)
-            .or_insert(BTreeSet::new())
+            .or_insert(HashSet::new())
             .insert(end);
     }
 
@@ -260,7 +348,9 @@ impl Compiler {
 
                 let start = match quantifier {
                     Some(quantifier) => {
-                        let new_start = self.nfa.add_state_with_quantifier(false, *quantifier);
+                        let new_start = self
+                            .nfa
+                            .add_state_with_quantifier(false, (*quantifier, end));
                         self.nfa.add_transition(start, new_start, Input::Eps);
                         new_start
                     }
@@ -279,7 +369,10 @@ impl Compiler {
 
                 let start = match quantifier {
                     Some(quantifier) => {
-                        let new_start = self.nfa.add_state_with_quantifier(false, *quantifier);
+                        let new_start = self
+                            .nfa
+                            .add_state_with_quantifier(false, (*quantifier, end));
+                        // Transition from the expression start state to the quantifier state
                         self.nfa.add_transition(start, new_start, Input::Eps);
                         new_start
                     }
@@ -289,6 +382,18 @@ impl Compiler {
                 self.expr(expr, start, end);
             }
         }
+    }
+}
+
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
     }
 }
 
@@ -307,6 +412,10 @@ mod foo {
         println!(
             "{}",
             Nfa::from(Parser::new("((a|b)c🔥🌘|foo)").parse().unwrap()).to_dot()
+        );
+        println!(
+            "{}",
+            Nfa::from(Parser::new("((ab)*c{3})?").parse().unwrap()).to_dot()
         );
     }
 }

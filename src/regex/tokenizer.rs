@@ -386,6 +386,20 @@ impl<'a> Tokenizer<'a> {
     }
 }
 
+impl ClassKind {
+    pub(super) fn contains(&self, c: char) -> bool {
+        match *self {
+            ClassKind::Wildcard => true,
+            ClassKind::Word => c.is_alphabetic(),
+            ClassKind::Whitespace => c.is_whitespace(),
+            ClassKind::Digit => c.is_ascii_digit(),
+            ClassKind::NonWord => !c.is_alphabetic(),
+            ClassKind::NonDigit => !c.is_ascii_digit(),
+            ClassKind::NonWhitespace => !c.is_whitespace(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

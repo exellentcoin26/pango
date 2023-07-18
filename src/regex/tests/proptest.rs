@@ -1,5 +1,7 @@
 use proptest::{collection, option::of, prelude::*};
 
+use crate::prelude::W;
+
 use super::{
     ast::{ExprKind, GroupedLiteralKind, LiteralKind},
     parser::Parser,
@@ -76,6 +78,7 @@ impl ToString for LiteralKind {
                     false => "",
                 },
                 literals
+                    .0
                     .iter()
                     .map(|l| l.to_string())
                     .collect::<Vec<_>>()
@@ -148,7 +151,10 @@ fn arb_literal_kind() -> impl Strategy<Value = LiteralKind> {
             any::<bool>(),
             collection::vec(arb_grouped_literal_kind(), 0..=6)
         )
-            .prop_map(|(negated, literals)| LiteralKind::Group { negated, literals })
+            .prop_map(|(negated, literals)| LiteralKind::Group {
+                negated,
+                literals: W(literals)
+            })
     ]
 }
 

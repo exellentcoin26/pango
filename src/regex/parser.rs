@@ -4,7 +4,10 @@ use super::{
     ast::{self, Ast},
     tokenizer::{OperatorKind, Token, TokenKind, Tokenizer},
 };
-use crate::iter::{CachedPeekable, CachedPeekableable, Peekableable};
+use crate::{
+    iter::{CachedPeekable, CachedPeekableable, Peekableable},
+    prelude::W,
+};
 
 /// Recursive descent regex parser.
 pub(crate) struct Parser<'a> {
@@ -263,7 +266,10 @@ impl<'a> Parser<'a> {
             };
         }
 
-        Ok(ast::LiteralKind::Group { negated, literals })
+        Ok(ast::LiteralKind::Group {
+            negated,
+            literals: W(literals),
+        })
     }
 
     /// Rule: `character_group_item ::= CHARACTER_CLASS | character_range | CHARACTER`
