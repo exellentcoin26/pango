@@ -52,6 +52,13 @@ impl Nfa {
         NfaBuilder::new(start_state_final)
     }
 
+    pub(super) fn get_state(&self, id: StateId) -> &State {
+        self.states
+            .iter()
+            .find(|s| s.id == id)
+            .expect("requested state does not exist")
+    }
+
     fn get_final_states(&self) -> impl Iterator<Item = &State> + '_ {
         self.states.iter().filter(|s| s.fin)
     }
@@ -309,6 +316,22 @@ impl Compiler {
         self.nfa.build()
     }
 
+    fn insert_quantifier_state(
+        &mut self,
+        quantifier: QuantifierKind,
+        start_state: StateId,
+        end_state: StateId,
+    ) -> StateId {
+        let quantifier_state = self
+            .nfa
+            .add_state_with_quantifier(false, (quantifier, end_state));
+
+        self.nfa
+            .add_transition(start_state, quantifier_state, Input::Eps);
+
+        quantifier_state
+    }
+
     #[allow(clippy::only_used_in_recursion)]
     fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
         match expr {
@@ -346,15 +369,13 @@ impl Compiler {
                 //
                 // Quantification can be implemented using an extra gateway state and a
 
-                let start = match quantifier {
+                let (start, end) = match quantifier {
                     Some(quantifier) => {
-                        let new_start = self
-                            .nfa
-                            .add_state_with_quantifier(false, (*quantifier, end));
-                        self.nfa.add_transition(start, new_start, Input::Eps);
-                        new_start
+                        let quantifier_state =
+                            self.insert_quantifier_state(*quantifier, start, end);
+                        (quantifier_state, quantifier_state)
                     }
-                    None => start,
+                    None => (start, end),
                 };
 
                 self.nfa
@@ -367,16 +388,13 @@ impl Compiler {
                 // wrapper and redo the expression when the quantification is still or not yet
                 // valid.
 
-                let start = match quantifier {
+                let (start, end) = match quantifier {
                     Some(quantifier) => {
-                        let new_start = self
-                            .nfa
-                            .add_state_with_quantifier(false, (*quantifier, end));
-                        // Transition from the expression start state to the quantifier state
-                        self.nfa.add_transition(start, new_start, Input::Eps);
-                        new_start
+                        let quantifier_state =
+                            self.insert_quantifier_state(*quantifier, start, end);
+                        (quantifier_state, quantifier_state)
                     }
-                    None => start,
+                    None => (start, end),
                 };
 
                 self.expr(expr, start, end);

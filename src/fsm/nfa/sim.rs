@@ -67,13 +67,7 @@ impl Simulateable for NfaSimulator<'_> {
                 .iter()
                 .filter_map(|(expected, states)| {
                     if expected.can_take(input) {
-                        Some(states.iter().map(|state_id| {
-                            self.nfa
-                                .states
-                                .iter()
-                                .find(|state| state.id == *state_id)
-                                .expect("state should always exist, otherwise the NFA is invalid")
-                        }))
+                        Some(states.iter().map(|state_id| self.nfa.get_state(*state_id)))
                     } else {
                         None
                     }
