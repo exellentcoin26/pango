@@ -1,5 +1,5 @@
 use super::{
-    super::traits::Simulateable,
+    super::traits::Simulatable,
     model::{Nfa, State, StateId},
 };
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ impl<'a> NfaSimulator<'a> {
     }
 }
 
-impl Simulateable for NfaSimulator<'_> {
+impl Simulatable for NfaSimulator<'_> {
     fn is_accepting(&self) -> bool {
         self.runs.iter().any(|r| match r.state {
             State::Reg { fin, .. } => *fin,

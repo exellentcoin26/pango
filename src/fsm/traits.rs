@@ -1,4 +1,4 @@
-pub(super) trait Simulateable {
+pub(super) trait Simulatable {
     /// Simulates the finite-state machine from start to finish and returns whether it accepts the
     /// input.
     fn run(mut self, input: &str) -> bool
