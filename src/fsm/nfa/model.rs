@@ -12,6 +12,8 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 // now, quantified expressions can reach the final state no matter what the quantifier is for the
 // expression.
 
+// TODO: Clean up expects and panics to be `Option` and `Result` types.
+
 pub(super) type StateId = usize;
 
 pub(super) struct Nfa {
@@ -20,19 +22,31 @@ pub(super) struct Nfa {
 }
 
 #[derive(PartialEq, Eq)]
-pub(super) struct State {
-    /// Id of the state used by other states as a pointer.
-    pub(super) id: StateId,
-    /// Whether the state is final.
-    pub(super) fin: bool,
-    /// Transitions to other states that can be made based on an input.
-    pub(super) transitions: HashMap<Input, HashSet<StateId>>,
-    /// Whether the state is a quantifier guard. If it is, what is the quantifier and if the
-    /// quantifier is satisfied, what shortcut in the NFA can be taken to "fullfil" the quantifier.
+pub(super) enum State {
+    /// A regular automata state.
+    Reg {
+        /// Id of the state used by other states as a pointer.
+        id: StateId,
+        /// Whether the state is final.
+        fin: bool,
+        /// Transitions to other states that can be made based on an input.
+        transitions: HashMap<Input, HashSet<StateId>>,
+    },
+    /// A expression quantifier guard state used to prevent the exponential blowup of quantfied
+    /// regular expressions, like, `{23, 60}`.
     ///
-    /// Note: The transition that is used as the shortcut does not need to be inserted into the map of
-    /// transitions.
-    pub(super) quantifier: Option<(QuantifierKind, StateId)>,
+    /// Note: A guard state can never be final.
+    QuantGuard {
+        /// Id of the state used by other states as a pointer.
+        id: StateId,
+        /// Quantifier the guard represents, when it is fullfilled, the a transition to the
+        /// transition state _can_ be made.
+        quantifier: QuantifierKind,
+        /// The state to which the automata _can_ transition when the quantifier is fullfilled.
+        quantifier_done: StateId,
+        /// Transitions to other states on epsilon.
+        transitions: HashSet<StateId>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -55,109 +69,57 @@ impl Nfa {
     pub(super) fn get_state(&self, id: StateId) -> &State {
         self.states
             .iter()
-            .find(|s| s.id == id)
+            .find(|s| s.has_id(id))
             .expect("requested state does not exist")
     }
 
-    fn get_final_states(&self) -> impl Iterator<Item = &State> + '_ {
-        self.states.iter().filter(|s| s.fin)
+    pub(super) fn get_final_states(&self) -> impl Iterator<Item = &State> + '_ {
+        self.states.iter().filter(|s| match s {
+            State::Reg { fin, .. } => *fin,
+            State::QuantGuard { .. } => false,
+        })
     }
 
     /// Returns an iterator over references to all states in the epsilon closure of the given
     /// state.
+    ///
+    /// Note: This does not use guard states in the closure, because this requires simulation time
+    /// information which is not encoded in the model of the NFA.
     pub(super) fn eps_closure(&self, state_id: StateId) -> impl Iterator<Item = &State> {
-        let state = self
-            .states
-            .iter()
-            .find(|s| s.id == state_id)
-            .expect("state should always exist");
+        let state = self.get_state(state_id);
 
         let mut not_visited = VecDeque::from([state]);
         let mut result = BTreeSet::from([state]);
 
         while let Some(state) = not_visited.pop_front() {
-            let new_states = state
-                .transitions
-                .iter()
-                .filter_map(|(input, states)| {
-                    if *input == Input::Eps {
-                        Some(states.iter().map(|state_id| {
-                            self.states
-                                .iter()
-                                .find(|state| state.id == *state_id)
-                                .expect("state should always exist otherwise the NFA is invalid")
-                        }))
-                    } else {
-                        None
-                    }
-                })
-                .flatten();
+            match state {
+                State::Reg { transitions, .. } => {
+                    let new_states = transitions
+                        .iter()
+                        .filter_map(|(input, states)| {
+                            if *input == Input::Eps {
+                                Some(states.iter().map(|state_id| self.get_state(*state_id)))
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten();
 
-            // This clone _should_ be cheap, as it is a clone of references and not actual states.
-            not_visited.extend(new_states.clone());
-            result.extend(new_states);
+                    // This clone _should_ be cheap, as it is a clone of references and not actual states.
+                    not_visited.extend(new_states.clone());
+                    result.extend(new_states);
+                }
+                State::QuantGuard { transitions, .. } => {
+                    let new_states = transitions.iter().map(|id| self.get_state(*id));
+
+                    // This clone _should_ be cheap, as it is a clone of references and not actual states.
+                    not_visited.extend(new_states.clone());
+                    result.extend(new_states);
+                }
+            };
         }
 
         result.into_iter()
-    }
-
-    /// Converts the NFA to dot language using the grahviz dot language format.
-    #[allow(unused)]
-    fn to_dot(&self) -> String {
-        let transition_dot = self
-            .states
-            .iter()
-            .flat_map(|state| {
-                state
-                    .transitions
-                    .iter()
-                    .flat_map(move |(input, dest_states)| {
-                        dest_states.iter().map(move |dest| {
-                            format!("{} -> {} [label = \"{:?}\"];\n", state.id, dest, input)
-                        })
-                    })
-            })
-            .collect::<String>();
-
-        let final_dot = format!(
-            "node [shape = doublecircle]; {}",
-            self.get_final_states()
-                .map(|s| s.id.to_string())
-                .collect::<Vec<String>>()
-                .join(" ")
-        );
-
-        let guard_dot = self
-            .states
-            .iter()
-            .filter_map(|s| {
-                s.quantifier
-                    .map(|q| format!("{} [label = \"{} ({:?})\"];\n", s.id, s.id, q))
-            })
-            .collect::<String>();
-
-        format!(
-            "digraph nfa {{\n\
-                \trankdir = LR;\n\
-            \n\
-                \t{}\n\
-                {}\n\
-                \tnode [shape = circle]; 0;\n\
-            \n\
-                {}\n\
-            }}",
-            final_dot,
-            guard_dot
-                .lines()
-                .map(|l| format!("\t{}", l))
-                .collect::<Vec<String>>()
-                .join("\n"),
-            transition_dot
-                .lines()
-                .map(|l| format!("\t{}", l))
-                .collect::<Vec<String>>()
-                .join("\n")
-        )
     }
 }
 
@@ -171,30 +133,48 @@ impl Input {
 }
 
 impl State {
-    fn new(
+    fn new_quantifier_guard(
         id: StateId,
-        transitions: HashMap<Input, HashSet<StateId>>,
-        fin: bool,
-        quantifier: Option<(QuantifierKind, StateId)>,
+        quantifier: QuantifierKind,
+        quantifier_done: StateId,
+        transitions: HashSet<StateId>,
     ) -> Self {
-        Self {
+        Self::QuantGuard {
             id,
-            transitions,
-            fin,
             quantifier,
+            quantifier_done,
+            transitions,
         }
     }
 
-    fn with_id(id: StateId, fin: bool) -> Self {
-        Self::new(id, HashMap::new(), fin, None)
+    fn new_regular(id: StateId, transitions: HashMap<Input, HashSet<StateId>>, fin: bool) -> Self {
+        Self::Reg {
+            id,
+            fin,
+            transitions,
+        }
     }
 
-    fn with_id_and_quantifier(
-        id: StateId,
-        fin: bool,
-        quantifier: (QuantifierKind, StateId),
-    ) -> Self {
-        Self::new(id, HashMap::new(), fin, Some(quantifier))
+    fn regular_with_id(id: StateId, fin: bool) -> Self {
+        Self::new_regular(id, HashMap::new(), fin)
+    }
+
+    fn quantifier_with_id(id: StateId, quantifier: QuantifierKind, transition: StateId) -> Self {
+        Self::new_quantifier_guard(id, quantifier, transition, HashSet::new())
+    }
+
+    pub(super) fn get_id(&self) -> StateId {
+        match self {
+            State::Reg { id, .. } => *id,
+            State::QuantGuard { id, .. } => *id,
+        }
+    }
+
+    pub(super) fn has_id(&self, state_id: StateId) -> bool {
+        match self {
+            State::Reg { id, .. } => *id == state_id,
+            State::QuantGuard { id, .. } => *id == state_id,
+        }
     }
 }
 
@@ -213,16 +193,30 @@ impl NfaBuilder {
     fn new(start_state_final: bool) -> Self {
         Self {
             start_state: 0,
-            states: Vec::from([State::with_id(0, start_state_final)]),
+            states: Vec::from([State::regular_with_id(0, start_state_final)]),
         }
     }
 
     fn build(self) -> Nfa {
+        // Create a set of StateIds present in the NFA and a set of transition destination ids.
+
         let (state_ids, destination_ids) = self.states.iter().fold(
             (HashSet::new(), HashSet::new()),
             |(mut state_ids, mut destination_ids), state| {
-                state_ids.insert(state.id);
-                destination_ids.extend(state.transitions.values().flatten());
+                state_ids.insert(state.get_id());
+                match state {
+                    State::Reg { transitions, .. } => {
+                        destination_ids.extend(transitions.values().flatten())
+                    }
+                    State::QuantGuard {
+                        quantifier_done,
+                        transitions,
+                        ..
+                    } => {
+                        destination_ids.insert(*quantifier_done);
+                        destination_ids.extend(transitions)
+                    }
+                }
 
                 (state_ids, destination_ids)
             },
@@ -243,9 +237,10 @@ impl NfaBuilder {
     }
 
     fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
-        self.states
-            .iter()
-            .filter_map(|s| if s.fin { Some(s.id) } else { None })
+        self.states.iter().filter_map(|s| match s {
+            State::Reg { id, fin: true, .. } => Some(*id),
+            _ => None,
+        })
     }
 
     fn with_state(mut self, fin: bool) -> Self {
@@ -260,29 +255,46 @@ impl NfaBuilder {
 
     fn add_state(&mut self, fin: bool) -> StateId {
         let id = self.new_state_id();
-        self.states.push(State::with_id(id, fin));
+        self.states.push(State::regular_with_id(id, fin));
         id
     }
 
-    fn add_state_with_quantifier(
+    fn add_quantified_state(
         &mut self,
-        fin: bool,
-        quantifier: (QuantifierKind, StateId),
+        quantifier: QuantifierKind,
+        quantifier_done: StateId,
     ) -> StateId {
         let id = self.new_state_id();
         self.states
-            .push(State::with_id_and_quantifier(id, fin, quantifier));
+            .push(State::quantifier_with_id(id, quantifier, quantifier_done));
         id
     }
 
-    fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
+    fn get_state_mut(&mut self, state_id: StateId) -> &mut State {
         self.states
-            .get_mut(start)
-            .expect("state index does not exist")
-            .transitions
-            .entry(input)
-            .or_insert(HashSet::new())
-            .insert(end);
+            .iter_mut()
+            .find(|s| s.has_id(state_id))
+            .expect("state does not exist")
+    }
+
+    fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
+        match self.get_state_mut(start) {
+            State::Reg {
+                ref mut transitions,
+                ..
+            } => {
+                transitions
+                    .entry(input)
+                    .or_insert(HashSet::new())
+                    .insert(end);
+            }
+            State::QuantGuard {
+                ref mut transitions,
+                ..
+            } => {
+                transitions.insert(end);
+            }
+        }
     }
 
     /// Returns the next generated state should have. If the state is not created, the id will not
@@ -292,7 +304,7 @@ impl NfaBuilder {
     }
 }
 
-// Regex AST to NFA compiler.
+/// Regex AST to NFA compiler.
 struct Compiler {
     /// Current NFA being compiled from the regex syntax tree.
     nfa: NfaBuilder,
@@ -322,9 +334,7 @@ impl Compiler {
         start_state: StateId,
         end_state: StateId,
     ) -> StateId {
-        let quantifier_state = self
-            .nfa
-            .add_state_with_quantifier(false, (quantifier, end_state));
+        let quantifier_state = self.nfa.add_quantified_state(quantifier, end_state);
 
         self.nfa
             .add_transition(start_state, quantifier_state, Input::Eps);
@@ -405,13 +415,13 @@ impl Compiler {
 
 impl PartialOrd for State {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.id.partial_cmp(&other.id)
+        self.get_id().partial_cmp(&other.get_id())
     }
 }
 
 impl Ord for State {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id.cmp(&other.id)
+        self.get_id().cmp(&other.get_id())
     }
 }
 

@@ -29,7 +29,7 @@ impl<'a> Run<'a> {
     }
 
     fn update(mut self, new_state: &'a State) -> Self {
-        *self.state_counters.entry(self.state.id).or_insert(0) += 1;
+        *self.state_counters.entry(self.state.get_id()).or_insert(0) += 1;
 
         Self {
             state: new_state,
@@ -52,7 +52,10 @@ impl<'a> NfaSimulator<'a> {
 
 impl Simulateable for NfaSimulator<'_> {
     fn is_accepting(&self) -> bool {
-        self.runs.iter().any(|r| r.state.fin)
+        self.runs.iter().any(|r| match r.state {
+            State::Reg { fin, .. } => *fin,
+            _ => false,
+        })
     }
 
     fn feed(&mut self, input: char) -> bool {
@@ -61,24 +64,26 @@ impl Simulateable for NfaSimulator<'_> {
         for run in self.runs.iter() {
             // Check for every transition if the input can make that transition.
 
-            let new_states = run
-                .state
-                .transitions
-                .iter()
-                .filter_map(|(expected, states)| {
-                    if expected.can_take(input) {
-                        Some(states.iter().map(|state_id| self.nfa.get_state(*state_id)))
-                    } else {
-                        None
-                    }
-                })
-                .flatten();
+            let new_states = match run.state {
+                State::Reg { transitions, .. } => transitions
+                    .iter()
+                    .filter_map(|(expected, states)| {
+                        if expected.can_take(input) {
+                            Some(states.iter().map(|state_id| self.nfa.get_state(*state_id)))
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten(),
+
+                _ => panic!("runs can only be in a regular state, not in quantifier guards"),
+            };
 
             // For every run, this clones one time too many. This is not a problem as `Run` is
             // relatively cheap to clone, because it only contains references and usize's.
             updated_runs.extend(
                 new_states
-                    .flat_map(|s| self.nfa.eps_closure(s.id))
+                    .flat_map(|s| self.nfa.eps_closure(s.get_id()))
                     .map(|s| run.clone().update(s)),
             )
         }
