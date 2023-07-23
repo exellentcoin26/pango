@@ -74,13 +74,23 @@ impl Simulatable for NfaSimulator<'_> {
                 })
                 .flatten();
 
-            // For every run, this clones one time too many. This is not a problem as `Run` is
+            // First, update the run with the new information, then calculate the epsilon closure
+            // with the updated state counters.
+            //
+            // Note: For every run, this clones one time too many. This is not a problem as `Run` is
             // relatively cheap to clone, because it only contains references and usize's.
-            updated_runs.extend(
-                new_states
-                    .flat_map(|s| self.nfa.eps_closure(*s, Some(state_counters)))
-                    .map(|s| run.clone().update(s)),
-            )
+
+            for new_state_id in new_states {
+                let new_run = run.clone().update(self.nfa.get_state(*new_state_id));
+
+                let eps_closure = self
+                    .nfa
+                    .eps_closure(new_run.state.id, Some(&new_run.state_counters))
+                    // Do include the original state
+                    .filter(|State { id, .. }| *id != new_run.state.id);
+
+                updated_runs.extend(eps_closure.map(|s| new_run.clone().update(s)));
+            }
         }
 
         self.runs = updated_runs;
