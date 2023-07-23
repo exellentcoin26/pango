@@ -1,5 +1,5 @@
 use crate::regex::{
-    ast::{self, Ast, ExprKind},
+    ast::{self},
     tokenizer::QuantifierKind,
 };
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
@@ -62,7 +62,7 @@ impl Default for Nfa {
 }
 
 impl Nfa {
-    fn builder(start_state_final: bool) -> NfaBuilder {
+    pub(super) fn builder(start_state_final: bool) -> NfaBuilder {
         NfaBuilder::new(start_state_final)
     }
 
@@ -207,12 +207,6 @@ impl State {
     }
 }
 
-impl From<Ast> for Nfa {
-    fn from(value: Ast) -> Self {
-        Compiler::new().compile(&value.0)
-    }
-}
-
 pub(super) struct NfaBuilder {
     pub(super) start_state: StateId,
     pub(super) states: Vec<State>,
@@ -265,30 +259,30 @@ impl NfaBuilder {
         }
     }
 
-    fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
+    pub(super) fn get_final_states(&self) -> impl Iterator<Item = StateId> + '_ {
         self.states.iter().filter_map(|s| match s {
             State::Reg { id, fin: true, .. } => Some(*id),
             _ => None,
         })
     }
 
-    fn with_state(mut self, fin: bool) -> Self {
+    pub(super) fn with_state(mut self, fin: bool) -> Self {
         self.add_state(fin);
         self
     }
 
-    fn with_transition(mut self, start: StateId, end: StateId, input: Input) -> Self {
+    pub(super) fn with_transition(mut self, start: StateId, end: StateId, input: Input) -> Self {
         self.add_transition(start, end, input);
         self
     }
 
-    fn add_state(&mut self, fin: bool) -> StateId {
+    pub(super) fn add_state(&mut self, fin: bool) -> StateId {
         let id = self.new_state_id();
         self.states.push(State::regular_with_id(id, fin));
         id
     }
 
-    fn add_quantified_state(
+    pub(super) fn add_quantified_state(
         &mut self,
         quantifier: QuantifierKind,
         quantifier_done: StateId,
@@ -299,14 +293,14 @@ impl NfaBuilder {
         id
     }
 
-    fn get_state_mut(&mut self, state_id: StateId) -> &mut State {
+    pub(super) fn get_state_mut(&mut self, state_id: StateId) -> &mut State {
         self.states
             .iter_mut()
             .find(|s| s.has_id(state_id))
             .expect("state does not exist")
     }
 
-    fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
+    pub(super) fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
         match self.get_state_mut(start) {
             State::Reg {
                 ref mut transitions,
@@ -330,115 +324,6 @@ impl NfaBuilder {
     /// be taken.
     fn new_state_id(&self) -> StateId {
         self.states.len()
-    }
-}
-
-/// Regex AST to NFA compiler.
-struct Compiler {
-    /// Current NFA being compiled from the regex syntax tree.
-    nfa: NfaBuilder,
-}
-
-impl Compiler {
-    fn new() -> Self {
-        Self {
-            nfa: Nfa::builder(false).with_state(true),
-        }
-    }
-
-    fn compile(mut self, expr: &ExprKind) -> Nfa {
-        let end_state = self
-            .nfa
-            .get_final_states()
-            .next()
-            .expect("exected at least one final state for the NFA to start with");
-
-        self.expr(expr, self.nfa.start_state, end_state);
-        self.nfa.build()
-    }
-
-    fn insert_quantifier_state(
-        &mut self,
-        quantifier: QuantifierKind,
-        start_state: StateId,
-        end_state: StateId,
-    ) -> StateId {
-        let quantifier_state = self.nfa.add_quantified_state(quantifier, end_state);
-
-        self.nfa
-            .add_transition(start_state, quantifier_state, Input::Eps);
-
-        quantifier_state
-    }
-
-    #[allow(clippy::only_used_in_recursion)]
-    fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
-        match expr {
-            ExprKind::Concat(exprs) => {
-                // Run once for the first expression so that it is connected to the expected start
-                // state. Run the intermediate expressions to connect them in a chain. Run once for
-                // the last expression so it is connected to the expected end state.
-
-                let mut current_state = start;
-
-                for expr in exprs.iter().take(exprs.len() - 1) {
-                    let new_state = self.nfa.add_state(false);
-                    self.expr(expr, current_state, new_state);
-                    current_state = new_state;
-                }
-
-                self.expr(
-                    exprs.last().expect(
-                        "expected at least one expressions in a concatenation of expressions",
-                    ),
-                    current_state,
-                    end,
-                )
-            }
-            ExprKind::Empty => self.nfa.add_transition(start, end, Input::Eps),
-            ExprKind::Alt(lhs, rhs) => {
-                // Connect both the expect start and end state
-                self.expr(lhs, start, end);
-                self.expr(rhs, start, end);
-            }
-            ExprKind::Lit(lit, quantifier) => {
-                // TODO: Decide on how to implement quantification of states. Right now I think it
-                // might be possible to combine quantifiers and take min/max values of the range
-                // values to decide the new quantifier.
-                //
-                // Quantification can be implemented using an extra gateway state and a
-
-                let (start, end) = match quantifier {
-                    Some(quantifier) => {
-                        let quantifier_state =
-                            self.insert_quantifier_state(*quantifier, start, end);
-                        (quantifier_state, quantifier_state)
-                    }
-                    None => (start, end),
-                };
-
-                self.nfa
-                    .add_transition(start, end, Input::Literal(lit.clone()));
-            }
-            ExprKind::Group(expr, quantifier) => {
-                // TODO: Decide on how to implement quantification of expressions. A quantification
-                // can be expressed as a wrapped expression with a gateway state that counts how
-                // many times it is passed and can both go to the end state for the quantification
-                // wrapper and redo the expression when the quantification is still or not yet
-                // valid.
-
-                let (start, end) = match quantifier {
-                    Some(quantifier) => {
-                        let quantifier_state =
-                            self.insert_quantifier_state(*quantifier, start, end);
-                        (quantifier_state, quantifier_state)
-                    }
-                    None => (start, end),
-                };
-
-                self.expr(expr, start, end);
-            }
-        }
     }
 }
 
