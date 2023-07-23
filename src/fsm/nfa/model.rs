@@ -86,15 +86,46 @@ impl Nfa {
     /// Note: This does not use guard states in the closure, because this requires simulation time
     /// information which is not encoded in the model of the NFA.
     pub(super) fn eps_closure(&self, state_id: StateId) -> impl Iterator<Item = &State> {
+        /// Enum for iterator types used to return different iterator types from the same match
+        /// exression as long as they have the same `Item`. This can also be done by boxing the
+        /// iterators, but would require indirection and runtime performance loss.
+        ///
+        /// Note: This is a really over-engineered solution to code repitition inside the match
+        /// arms. However, not looking at the boiler-plate code (which could be turned into a
+        /// macro) is, in my opinion, the cleanest.
+        enum EpsClosureIter<Item, R, Q>
+        where
+            R: Iterator<Item = Item>,
+            Q: Iterator<Item = Item>,
+        {
+            Reg(R),
+            Quant(Q),
+        }
+
+        impl<Item, R, Q> Iterator for EpsClosureIter<Item, R, Q>
+        where
+            R: Iterator<Item = Item>,
+            Q: Iterator<Item = Item>,
+        {
+            type Item = Item;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                match self {
+                    EpsClosureIter::Reg(reg) => reg.next(),
+                    EpsClosureIter::Quant(quant) => quant.next(),
+                }
+            }
+        }
+
         let state = self.get_state(state_id);
 
         let mut not_visited = VecDeque::from([state]);
         let mut result = BTreeSet::from([state]);
 
         while let Some(state) = not_visited.pop_front() {
-            match state {
-                State::Reg { transitions, .. } => {
-                    let new_states = transitions
+            let new_states = match state {
+                State::Reg { transitions, .. } => EpsClosureIter::Reg(
+                    transitions
                         .iter()
                         .filter_map(|(input, states)| {
                             if *input == Input::Eps {
@@ -103,20 +134,18 @@ impl Nfa {
                                 None
                             }
                         })
-                        .flatten();
-
-                    // This clone _should_ be cheap, as it is a clone of references and not actual states.
-                    not_visited.extend(new_states.clone());
-                    result.extend(new_states);
-                }
+                        .flatten(),
+                ),
                 State::QuantGuard { transitions, .. } => {
-                    let new_states = transitions.iter().map(|id| self.get_state(*id));
-
-                    // This clone _should_ be cheap, as it is a clone of references and not actual states.
-                    not_visited.extend(new_states.clone());
-                    result.extend(new_states);
+                    EpsClosureIter::Quant(transitions.iter().map(|id| self.get_state(*id)))
                 }
             };
+
+            for state in new_states {
+                if result.insert(state) {
+                    not_visited.push_back(state)
+                }
+            }
         }
 
         result.into_iter()
@@ -124,7 +153,7 @@ impl Nfa {
 }
 
 impl Input {
-    pub(crate) fn can_take(&self, input: char) -> bool {
+    pub(super) fn can_take(&self, input: char) -> bool {
         match self {
             Input::Literal(lit) => lit.contains(input),
             Input::Eps => false,
@@ -184,20 +213,20 @@ impl From<Ast> for Nfa {
     }
 }
 
-struct NfaBuilder {
-    start_state: StateId,
-    states: Vec<State>,
+pub(super) struct NfaBuilder {
+    pub(super) start_state: StateId,
+    pub(super) states: Vec<State>,
 }
 
 impl NfaBuilder {
-    fn new(start_state_final: bool) -> Self {
+    pub(super) fn new(start_state_final: bool) -> Self {
         Self {
             start_state: 0,
             states: Vec::from([State::regular_with_id(0, start_state_final)]),
         }
     }
 
-    fn build(self) -> Nfa {
+    pub(super) fn build(self) -> Nfa {
         // Create a set of StateIds present in the NFA and a set of transition destination ids.
 
         let (state_ids, destination_ids) = self.states.iter().fold(

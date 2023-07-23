@@ -386,6 +386,21 @@ impl<'a> Tokenizer<'a> {
     }
 }
 
+impl QuantifierKind {
+    pub(crate) fn is_satisfied(&self, count: usize) -> bool {
+        match self {
+            QuantifierKind::Asterisk => true,
+            QuantifierKind::Plus => count > 0,
+            QuantifierKind::QuestionMark => count <= 1,
+            QuantifierKind::Range(QuantifierRangeKind::Max(max)) => count == *max as usize,
+            QuantifierKind::Range(QuantifierRangeKind::Min(min)) => count >= *min as usize,
+            QuantifierKind::Range(QuantifierRangeKind::Range(min, max)) => {
+                count <= *min as usize && count >= *max as usize
+            }
+        }
+    }
+}
+
 impl ClassKind {
     pub(super) fn contains(&self, c: char) -> bool {
         match *self {
