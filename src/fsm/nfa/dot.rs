@@ -7,38 +7,22 @@ impl Nfa {
         let final_dot = format!(
             "node [shape = doublecircle]; {}",
             self.get_final_states()
-                .map(|s| s.get_id().to_string())
+                .map(|State { id, .. }| id.to_string())
                 .collect::<Vec<String>>()
                 .join(" ")
         );
-
-        let guard_dot = self
-            .states
-            .iter()
-            .filter_map(|s| match s {
-                State::QuantGuard { id, quantifier, .. } => {
-                    Some(format!("{} [label = \"{} ({:?})\"];\n", id, id, quantifier))
-                }
-                _ => None,
-            })
-            .collect::<String>();
 
         format!(
             "digraph nfa {{\n\
                 \trankdir = LR;\n\
             \n\
+                \t// final states\n\
                 \t{}\n\
-                {}\n\
                 \tnode [shape = circle]; 0;\n\
             \n\
                 {}\n\
             }}",
             final_dot,
-            guard_dot
-                .lines()
-                .map(|l| format!("\t{}", l))
-                .collect::<Vec<String>>()
-                .join("\n"),
             self.transition_dot()
                 .map(|l| format!("\t{}", l))
                 .collect::<Vec<String>>()
@@ -56,27 +40,13 @@ impl Nfa {
 }
 
 impl State {
-    fn transition_tuples(&self) -> Box<dyn Iterator<Item = (StateId, StateId, String)> + '_> {
-        match self {
-            State::Reg {
-                id, transitions, ..
-            } => Box::new(transitions.iter().flat_map(move |(input, dest_states)| {
+    fn transition_tuples(&self) -> impl Iterator<Item = (StateId, StateId, String)> + '_ {
+        self.transitions
+            .iter()
+            .flat_map(move |(input, dest_states)| {
                 dest_states
                     .iter()
-                    .map(move |dest| (*id, *dest, format!("{:?}", input)))
-            })),
-            State::QuantGuard {
-                id,
-                transitions,
-                quantifier_done,
-                ..
-            } => Box::new(
-                std::iter::once((*id, *quantifier_done, "quant".to_string())).chain(
-                    transitions
-                        .iter()
-                        .map(|dest| (*id, *dest, format!("{:?}", Input::Eps))),
-                ),
-            ),
-        }
+                    .map(move |dest| (self.id, *dest, format!("{:?}", input)))
+            })
     }
 }

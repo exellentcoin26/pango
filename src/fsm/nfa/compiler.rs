@@ -26,7 +26,7 @@ impl Compiler {
     pub(super) fn compile(mut self, expr: &ExprKind) -> Nfa {
         let end_state = self
             .nfa
-            .get_final_states()
+            .get_final_state_ids()
             .next()
             .expect("exected at least one final state for the NFA to start with");
 
@@ -40,7 +40,7 @@ impl Compiler {
         start_state: StateId,
         end_state: StateId,
     ) -> StateId {
-        let quantifier_state = self.nfa.add_quantified_state(quantifier, end_state);
+        let quantifier_state = self.nfa.add_quantified_state(false, quantifier, end_state);
 
         self.nfa
             .add_transition(start_state, quantifier_state, Input::Eps);
@@ -79,12 +79,6 @@ impl Compiler {
                 self.expr(rhs, start, end);
             }
             ExprKind::Lit(lit, quantifier) => {
-                // TODO: Decide on how to implement quantification of states. Right now I think it
-                // might be possible to combine quantifiers and take min/max values of the range
-                // values to decide the new quantifier.
-                //
-                // Quantification can be implemented using an extra gateway state and a
-
                 let (start, end) = match quantifier {
                     Some(quantifier) => {
                         let quantifier_state =
@@ -98,12 +92,6 @@ impl Compiler {
                     .add_transition(start, end, Input::Literal(lit.clone()));
             }
             ExprKind::Group(expr, quantifier) => {
-                // TODO: Decide on how to implement quantification of expressions. A quantification
-                // can be expressed as a wrapped expression with a gateway state that counts how
-                // many times it is passed and can both go to the end state for the quantification
-                // wrapper and redo the expression when the quantification is still or not yet
-                // valid.
-
                 let (start, end) = match quantifier {
                     Some(quantifier) => {
                         let quantifier_state =

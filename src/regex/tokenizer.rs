@@ -64,7 +64,7 @@ pub(super) enum OperatorKind {
     Minus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum QuantifierKind {
     Asterisk,
@@ -73,7 +73,7 @@ pub(crate) enum QuantifierKind {
     Range(QuantifierRangeKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum QuantifierRangeKind {
     Max(u32),
