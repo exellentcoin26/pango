@@ -163,7 +163,29 @@ mod tests {
     }
 
     #[test]
-    fn or() {
+    fn concat() {
+        let nfa = Nfa::from(Parser::new("abc🌕").parse().unwrap());
+
+        eprintln!("{}", nfa);
+
+        assert!(nfa.simulate("abc🌕"));
+        assert!(!nfa.simulate("abd🌕"));
+        assert!(!nfa.simulate("abc🌕🌕"));
+        assert!(!nfa.simulate("aabc🌕"));
+    }
+
+    #[test]
+    fn empty() {
+        let nfa = Nfa::from(Parser::new("").parse().unwrap());
+
+        eprintln!("{}", nfa);
+
+        assert!(nfa.simulate(""));
+        assert!(!nfa.simulate("a"));
+    }
+
+    #[test]
+    fn alt() {
         let nfa = Nfa::from(Parser::new("(a|b){3,4}").parse().unwrap());
 
         // eprintln!("{}", nfa);
@@ -176,5 +198,36 @@ mod tests {
         assert!(nfa.simulate("aabb"));
         assert!(nfa.simulate("aaab"));
         assert!(nfa.simulate("bbba"));
+    }
+
+    #[test]
+    fn lit() {
+        let nfa = Nfa::from(Parser::new("a").parse().unwrap());
+
+        eprintln!("{}", nfa);
+
+        assert!(nfa.simulate("a"));
+        assert!(!nfa.simulate("b"));
+    }
+
+    #[test]
+    fn group() {
+        let nfa = Nfa::from(Parser::new("(abc)(ac)🌕").parse().unwrap());
+
+        eprintln!("{}", nfa);
+
+        assert!(nfa.simulate("abcac🌕"));
+        assert!(!nfa.simulate("bcac🌕"));
+        assert!(!nfa.simulate("abcac🌕🌕"));
+    }
+
+    #[test]
+    fn range_quantifier() {
+        let nfa = Nfa::from(Parser::new(r"a{3}(bc){2,}\}{2,4}").parse().unwrap());
+
+        eprintln!("{}", nfa);
+
+        assert!(nfa.simulate("aaabcbcbc}}}"));
+        // assert!(!nfa.simulate("aaabcbc}"));
     }
 }

@@ -222,7 +222,7 @@ impl<'a> Tokenizer<'a> {
                 TokenKind::Class(class)
             }
             'f' | 'n' | 'r' | 't' | 'v' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '('
-            | ')' | '[' | ']' | '|' | '/' | 'c' => self
+            | ')' | '[' | ']' | '|' | '/' | 'c' | '{' | '}' => self
                 .handle_escape_sequence(ch)
                 .map_or(TokenKind::Invalid, TokenKind::Match),
             'x' | 'u' => self
@@ -254,9 +254,8 @@ impl<'a> Tokenizer<'a> {
             't' => Some('\t'),
             'v' => Some(char::from_u32(0xb).expect("failed to convert code point to character")),
             '0' => Some('\0'),
-            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '/' => {
-                Some(ch)
-            }
+            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '/' | '{'
+            | '}' => Some(ch),
             'c' => {
                 // 'c' is followed by a letter from 'A'..='Z' or 'a'..='z'. The
                 // code point of the following letter modulo 32 is the code
