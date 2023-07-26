@@ -2,12 +2,14 @@ use crate::regex::{
     ast::{self},
     tokenizer::QuantifierKind,
 };
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 // TODO: Clean up expects and panics to be `Option` and `Result` types.
 
 pub(super) type StateId = usize;
-pub(super) type StateCounters = HashMap<StateId, usize>;
+
+/// Needs to be a `BTreeMap` for `std::hash::Hash` to be implemented.
+pub(super) type StateCounters = BTreeMap<StateId, usize>;
 
 pub(super) struct Nfa {
     pub(super) start_state: StateId,

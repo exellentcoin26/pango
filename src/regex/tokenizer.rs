@@ -395,7 +395,7 @@ impl QuantifierKind {
             QuantifierKind::Range(QuantifierRangeKind::Max(max)) => count == *max as usize,
             QuantifierKind::Range(QuantifierRangeKind::Min(min)) => count >= *min as usize,
             QuantifierKind::Range(QuantifierRangeKind::Range(min, max)) => {
-                count <= *min as usize && count >= *max as usize
+                count >= *min as usize && count <= *max as usize
             }
         }
     }
