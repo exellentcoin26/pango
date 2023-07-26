@@ -23,6 +23,6 @@ pub(super) trait Simulatable {
             .chars()
             .map(|c| self.feed(c))
             .last()
-            .expect("cannot feed an empty string")
+            .unwrap_or(self.is_accepting())
     }
 }
