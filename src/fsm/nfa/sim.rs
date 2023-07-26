@@ -31,11 +31,9 @@ impl Run {
 
     fn update(mut self, new_state_id: StateId) -> Self {
         *self.state_counters.entry(self.state_id).or_insert(0) += 1;
+        self.state_id = new_state_id;
 
-        Self {
-            state_id: new_state_id,
-            state_counters: self.state_counters,
-        }
+        self
     }
 }
 
@@ -44,7 +42,7 @@ impl<'a> NfaSimulator<'a> {
         Self {
             nfa,
             runs: nfa
-                .eps_closure(nfa.start_state, None)
+                .eps_closure(nfa.start_state)
                 .map(Run::new)
                 .collect::<Vec<_>>(),
         }

@@ -66,18 +66,12 @@ impl Nfa {
     /// state.
     ///
     /// When `state_counters` is not provided, it is assumed that the state is visited 0 times.
-    pub(super) fn eps_closure(
-        &self,
-        state_id: StateId,
-        state_counters: Option<&StateCounters>,
-    ) -> impl Iterator<Item = StateId> {
+    pub(super) fn eps_closure(&self, state_id: StateId) -> impl Iterator<Item = StateId> {
         let mut not_visited = VecDeque::from([state_id]);
         let mut result = BTreeSet::from([state_id]);
 
         while let Some(state_id) = not_visited.pop_front() {
-            let State {
-                id, transitions, ..
-            } = self.get_state(state_id);
+            let State { transitions, .. } = self.get_state(state_id);
 
             let new_state_ids = transitions
                 .iter()
@@ -86,10 +80,7 @@ impl Nfa {
                         Input::Literal(_) => None,
                         Input::Eps => Some(Box::new(states.iter())),
                         Input::Quantified(quantifier) => {
-                            if quantifier.is_satisfied(match state_counters {
-                                Some(state_counters) => *state_counters.get(id).unwrap_or(&0),
-                                None => 0,
-                            }) {
+                            if quantifier.is_satisfied(0) {
                                 Some(Box::new(states.iter()))
                             } else {
                                 None
@@ -263,26 +254,3 @@ impl PartialEq for State {
 }
 
 impl Eq for State {}
-
-#[cfg(test)]
-mod foo {
-    use super::Nfa;
-    use crate::regex::parser::Parser;
-
-    #[test]
-    fn to_dot() {
-        println!(
-            "{}",
-            Nfa::from(Parser::new("(ab)c🔥🌘").parse().unwrap()).to_dot()
-        );
-        println!("{}", Nfa::from(Parser::new("").parse().unwrap()).to_dot());
-        println!(
-            "{}",
-            Nfa::from(Parser::new("((a|b)c🔥🌘|foo)").parse().unwrap()).to_dot()
-        );
-        println!(
-            "{}",
-            Nfa::from(Parser::new("((ab)*c{3})?").parse().unwrap()).to_dot()
-        );
-    }
-}
