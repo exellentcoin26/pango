@@ -74,7 +74,7 @@ impl Compiler {
             }
             ExprKind::Empty => self.nfa.add_transition(start, end, Input::Eps),
             ExprKind::Alt(lhs, rhs) => {
-                // Connect both the expect start and end state
+                // Connect both the expected start and end state
                 self.expr(lhs, start, end);
                 self.expr(rhs, start, end);
             }

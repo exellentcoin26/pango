@@ -1,7 +1,4 @@
-use crate::regex::{
-    ast::{self},
-    tokenizer::QuantifierKind,
-};
+use crate::regex::{ast, tokenizer::QuantifierKind};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 // TODO: Clean up expects and panics to be `Option` and `Result` types.
@@ -17,7 +14,11 @@ pub(super) struct Nfa {
 }
 
 /// A state in the NFA.
-#[derive(PartialEq, Eq)]
+///
+/// Note: A state can only be constructed by the `NfaBuilder`. It is assumed that the state id is
+/// unique within an `Nfa`, thus checking equality is implemented using the id and NOT the other
+/// fields. This results in possibly incorrect behaviour when comparing with states from other
+/// `Nfa`'s.
 pub(super) struct State {
     /// Id of the state used by other states as a pointer.
     pub(super) id: StateId,
@@ -69,32 +70,27 @@ impl Nfa {
         &self,
         state_id: StateId,
         state_counters: Option<&StateCounters>,
-    ) -> impl Iterator<Item = &State> {
-        let state = self.get_state(state_id);
+    ) -> impl Iterator<Item = StateId> {
+        let mut not_visited = VecDeque::from([state_id]);
+        let mut result = BTreeSet::from([state_id]);
 
-        let mut not_visited = VecDeque::from([state]);
-        let mut result = BTreeSet::from([state]);
+        while let Some(state_id) = not_visited.pop_front() {
+            let State {
+                id, transitions, ..
+            } = self.get_state(state_id);
 
-        while let Some(State {
-            id, transitions, ..
-        }) = not_visited.pop_front()
-        {
-            let new_states = transitions
+            let new_state_ids = transitions
                 .iter()
                 .filter_map(|(input, states)| -> Option<Box<dyn Iterator<Item = _>>> {
                     match input {
                         Input::Literal(_) => None,
-                        Input::Eps => Some(Box::new(
-                            states.iter().map(|state_id| self.get_state(*state_id)),
-                        )),
+                        Input::Eps => Some(Box::new(states.iter())),
                         Input::Quantified(quantifier) => {
                             if quantifier.is_satisfied(match state_counters {
                                 Some(state_counters) => *state_counters.get(id).unwrap_or(&0),
                                 None => 0,
                             }) {
-                                Some(Box::new(
-                                    states.iter().map(|state_id| self.get_state(*state_id)),
-                                ))
+                                Some(Box::new(states.iter()))
                             } else {
                                 None
                             }
@@ -103,9 +99,9 @@ impl Nfa {
                 })
                 .flatten();
 
-            for state in new_states {
-                if result.insert(state) {
-                    not_visited.push_back(state)
+            for state_id in new_state_ids {
+                if result.insert(*state_id) {
+                    not_visited.push_back(*state_id)
                 }
             }
         }
@@ -259,6 +255,14 @@ impl Ord for State {
         self.id.cmp(&other.id)
     }
 }
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for State {}
 
 #[cfg(test)]
 mod foo {

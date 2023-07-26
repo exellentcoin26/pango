@@ -45,7 +45,7 @@ impl<'a> NfaSimulator<'a> {
             nfa,
             runs: nfa
                 .eps_closure(nfa.start_state, None)
-                .map(|s| Run::new(s.id))
+                .map(Run::new)
                 .collect::<Vec<_>>(),
         }
     }
