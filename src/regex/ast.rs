@@ -6,7 +6,7 @@
 //!     expression ::= sub_expression (VERTICAL expression)?;
 //!     sub_expression ::= sub_exrpession_item+;
 //!     sub_expression_item ::= match | group;
-//!     group ::= LEFT_PAREN expresion RIGHT_PAREN QUANTFIER?;s
+//!     group ::= LEFT_PAREN expresion RIGHT_PAREN QUANTFIER?;
 //!     match ::= match_item QUANTIFIER?;
 //!     match_item ::= CHARACTER_CLASS | CHARACTER | character_group;
 //!     character_group ::= LEFT_BRACKET CARRET? character_group_item+ RIGHT_BRACKET;
