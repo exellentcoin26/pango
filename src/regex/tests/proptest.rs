@@ -1,12 +1,10 @@
-use proptest::{collection, option::of, prelude::*};
-
-use crate::prelude::W;
-
 use super::{
     ast::{ExprKind, GroupedLiteralKind, LiteralKind},
     parser::Parser,
     tokenizer::{ClassKind, QuantifierKind, QuantifierRangeKind},
 };
+use crate::prelude::W;
+use proptest::{collection, option::of, prelude::*};
 
 fn is_special_regex(c: char) -> bool {
     matches!(
