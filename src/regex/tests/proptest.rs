@@ -205,8 +205,18 @@ fn arb_sub_expression_item(
 }
 
 fn arb_sub_expression(inner: impl Strategy<Value = ExprKind>) -> impl Strategy<Value = ExprKind> {
-    prop_oneof![collection::vec(arb_sub_expression_item(inner), 1..=10)
-        .prop_map(|exprs| ExprKind::Concat(exprs))]
+    prop_oneof![
+        collection::vec(arb_sub_expression_item(inner), 1..=10).prop_map(|exprs| {
+            let mut iter = exprs.iter();
+            let (first, second) = (iter.next(), iter.next());
+
+            match (first, second) {
+                (Some(_), Some(_)) => ExprKind::Concat(exprs),
+                (Some(first), None) => first.clone(),
+                _ => unreachable!("there should always be one expression"),
+            }
+        })
+    ]
 }
 
 fn arb_expression() -> impl Strategy<Value = ExprKind> {
