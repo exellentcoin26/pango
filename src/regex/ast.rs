@@ -86,3 +86,55 @@ impl GroupedLiteralKind {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{super::tokenizer::ClassKind, GroupedLiteralKind, LiteralKind};
+    use crate::prelude::W;
+
+    #[test]
+    fn grouped_literal_kind() {
+        assert!(GroupedLiteralKind::Match('z').contains('z'));
+        assert!(!GroupedLiteralKind::Match('b').contains('a'));
+        assert!(GroupedLiteralKind::Class(ClassKind::Digit).contains('1'));
+        assert!(!GroupedLiteralKind::Class(ClassKind::Digit).contains('a'));
+        assert!(GroupedLiteralKind::Range('a', 'f').contains('e'));
+        assert!(!GroupedLiteralKind::Range('a', 'z').contains('0'));
+    }
+
+    #[test]
+    fn literal_kind() {
+        assert!(LiteralKind::Match('a').contains('a'));
+        assert!(!LiteralKind::Match('b').contains('a'));
+        assert!(LiteralKind::Class(ClassKind::NonWord).contains('1'));
+        assert!(!LiteralKind::Class(ClassKind::NonWord).contains('a'));
+
+        let group = LiteralKind::Group {
+            negated: false,
+            literals: W(vec![
+                GroupedLiteralKind::Match('a'),
+                GroupedLiteralKind::Match('b'),
+                GroupedLiteralKind::Class(ClassKind::Whitespace),
+                GroupedLiteralKind::Range('_', '-'),
+            ]),
+        };
+
+        assert!(group.contains(' '));
+        assert!(group.contains('b'));
+        assert!(!group.contains('z'));
+
+        let negated_group = LiteralKind::Group {
+            negated: true,
+            literals: W(vec![
+                GroupedLiteralKind::Match('a'),
+                GroupedLiteralKind::Match('b'),
+                GroupedLiteralKind::Class(ClassKind::Whitespace),
+                GroupedLiteralKind::Range('_', '-'),
+            ]),
+        };
+
+        assert!(!negated_group.contains(' '));
+        assert!(!negated_group.contains('b'));
+        assert!(negated_group.contains('z'));
+    }
+}

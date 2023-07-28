@@ -30,7 +30,7 @@ impl Run {
     }
 
     fn take_transition(mut self, new_state_id: StateId, quantified: bool) -> Self {
-        let mut count = self.state_counters.entry(self.state_id).or_insert(0);
+        let count = self.state_counters.entry(self.state_id).or_insert(0);
         if quantified {
             // Reset the state count if quantified transition is used
             *count = 0;
