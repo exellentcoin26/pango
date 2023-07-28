@@ -7,33 +7,33 @@ use std::{iter::Enumerate, str::Chars};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-pub struct Tokenizer<'a> {
+pub(super) struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
     #[allow(unused)]
-    input: &'a str,
+    pub(super) input: &'a str,
     /// Iterator over the characters in the input (as defined in the rust `char`
     /// type), along with their position in the input.
     iter: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Token {
+pub(super) struct Token {
     /// Information about the kind of token along with the value of the token.
     /// The value can already be parsed (e.g. unicode escape sequences)
-    pub kind: TokenKind,
+    pub(super) kind: TokenKind,
     /// Start and end position of the token in the input text. The end position
     /// is one further than the end of the current token.
-    pub pos: (usize, usize),
+    pub(super) pos: (usize, usize),
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, pos: (usize, usize)) -> Self {
+    pub(super) fn new(kind: TokenKind, pos: (usize, usize)) -> Self {
         Self { kind, pos }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenKind {
+pub(super) enum TokenKind {
     Class(ClassKind),
     Operator(OperatorKind),
     Quantifier(QuantifierKind),
@@ -41,9 +41,9 @@ pub enum TokenKind {
     Invalid,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum ClassKind {
+pub(crate) enum ClassKind {
     Wildcard,
     Word,
     Whitespace,
@@ -54,7 +54,7 @@ pub enum ClassKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OperatorKind {
+pub(super) enum OperatorKind {
     LeftBracket,
     RightBracket,
     LeftParen,
@@ -64,18 +64,18 @@ pub enum OperatorKind {
     Minus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum QuantifierKind {
+pub(crate) enum QuantifierKind {
     Asterisk,
     Plus,
     QuestionMark,
     Range(QuantifierRangeKind),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum QuantifierRangeKind {
+pub(crate) enum QuantifierRangeKind {
     Max(u32),
     Min(u32),
     Range(u32, u32),
@@ -107,7 +107,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(input: &'a str) -> Self {
+    pub(super) fn new(input: &'a str) -> Self {
         Self {
             input,
             iter: input.chars().enumerate().cached_peekable(),
@@ -222,7 +222,7 @@ impl<'a> Tokenizer<'a> {
                 TokenKind::Class(class)
             }
             'f' | 'n' | 'r' | 't' | 'v' | '0' | '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '('
-            | ')' | '[' | ']' | '|' | '/' | 'c' => self
+            | ')' | '[' | ']' | '|' | '/' | 'c' | '{' | '}' | '-' => self
                 .handle_escape_sequence(ch)
                 .map_or(TokenKind::Invalid, TokenKind::Match),
             'x' | 'u' => self
@@ -254,9 +254,8 @@ impl<'a> Tokenizer<'a> {
             't' => Some('\t'),
             'v' => Some(char::from_u32(0xb).expect("failed to convert code point to character")),
             '0' => Some('\0'),
-            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '/' => {
-                Some(ch)
-            }
+            '^' | '$' | '\\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|' | '/' | '{'
+            | '-' | '}' => Some(ch),
             'c' => {
                 // 'c' is followed by a letter from 'A'..='Z' or 'a'..='z'. The
                 // code point of the following letter modulo 32 is the code
@@ -382,6 +381,35 @@ impl<'a> Tokenizer<'a> {
         match self.iter.current() {
             Some((cursor_pos, _)) => cursor_pos + 1,
             None => 1,
+        }
+    }
+}
+
+impl QuantifierKind {
+    pub(crate) fn is_satisfied(&self, count: usize) -> bool {
+        match self {
+            QuantifierKind::Asterisk => true,
+            QuantifierKind::Plus => count > 0,
+            QuantifierKind::QuestionMark => count <= 1,
+            QuantifierKind::Range(QuantifierRangeKind::Max(max)) => count == *max as usize,
+            QuantifierKind::Range(QuantifierRangeKind::Min(min)) => count >= *min as usize,
+            QuantifierKind::Range(QuantifierRangeKind::Range(min, max)) => {
+                count >= *min as usize && count <= *max as usize
+            }
+        }
+    }
+}
+
+impl ClassKind {
+    pub(super) fn contains(&self, c: char) -> bool {
+        match *self {
+            ClassKind::Wildcard => true,
+            ClassKind::Word => c.is_alphabetic(),
+            ClassKind::Whitespace => c.is_whitespace(),
+            ClassKind::Digit => c.is_ascii_digit(),
+            ClassKind::NonWord => !c.is_alphabetic(),
+            ClassKind::NonDigit => !c.is_ascii_digit(),
+            ClassKind::NonWhitespace => !c.is_whitespace(),
         }
     }
 }

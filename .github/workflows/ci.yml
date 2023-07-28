@@ -45,7 +45,7 @@ jobs:
           uses: dtolnay/rust-toolchain@stable
 
         - name: Run proptests
-          run: cargo test --locked proptest -- --ignored
+          run: cargo test --release --locked proptest -- --ignored
 
     rustfmt:
       name: rustfmt
