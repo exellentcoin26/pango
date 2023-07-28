@@ -29,8 +29,14 @@ impl Run {
         }
     }
 
-    fn update(mut self, new_state_id: StateId) -> Self {
-        *self.state_counters.entry(self.state_id).or_insert(0) += 1;
+    fn take_transition(mut self, new_state_id: StateId, quantified: bool) -> Self {
+        let mut count = self.state_counters.entry(self.state_id).or_insert(0);
+        if quantified {
+            // Reset the state count if quantified transition is used
+            *count = 0;
+        } else {
+            *count += 1;
+        }
         self.state_id = new_state_id;
 
         self
@@ -60,16 +66,16 @@ impl<'a> NfaSimulator<'a> {
 
             let State { transitions, .. } = self.nfa.get_state(*state_id);
 
-            let new_state_ids = transitions
+            let transitions_taken = transitions
                 .iter()
                 .filter_map(|(input, states)| -> Option<Box<dyn Iterator<Item = _>>> {
                     match input {
                         Input::Literal(_) => None,
-                        Input::Eps => Some(Box::new(states.iter())),
+                        Input::Eps => Some(Box::new(states.iter().map(|state| (state, false)))),
                         Input::Quantified(quantifier) => {
                             if quantifier.is_satisfied(*state_counters.get(state_id).unwrap_or(&0))
                             {
-                                Some(Box::new(states.iter()))
+                                Some(Box::new(states.iter().map(|state| (state, true))))
                             } else {
                                 None
                             }
@@ -78,9 +84,9 @@ impl<'a> NfaSimulator<'a> {
                 })
                 .flatten();
 
-            let new_runs = new_state_ids
+            let new_runs = transitions_taken
                 .into_iter()
-                .map(|new_state| run.clone().update(*new_state));
+                .map(|(new_state, quantified)| run.clone().take_transition(*new_state, quantified));
 
             for new_run in new_runs {
                 if result.insert(new_run.clone()) {
@@ -127,7 +133,7 @@ impl Simulatable for NfaSimulator<'_> {
 
             let new_runs = new_state_ids
                 .into_iter()
-                .map(|new_state_id| run.clone().update(*new_state_id))
+                .map(|new_state_id| run.clone().take_transition(*new_state_id, false))
                 .flat_map(|new_run| self.eps_closure(new_run));
 
             updated_runs.extend(new_runs);
@@ -136,7 +142,6 @@ impl Simulatable for NfaSimulator<'_> {
         self.runs = updated_runs;
 
         dbg!(input, &self.runs);
-
         dbg!(self.is_accepting())
     }
 }
@@ -228,6 +233,22 @@ mod tests {
         eprintln!("{}", nfa);
 
         assert!(nfa.simulate("aaabcbcbc}}}"));
-        // assert!(!nfa.simulate("aaabcbc}"));
+        assert!(nfa.simulate("aaabcbcbcbcbcbcbcbcbcbcbc}}}}"));
+        assert!(nfa.simulate("aaabcbc}}"));
+        assert!(!nfa.simulate("aaabcbc}"));
+        assert!(!nfa.simulate("aaaabcbc}}"));
+        assert!(!nfa.simulate("aaabc}}"));
+        assert!(!nfa.simulate("aaaabcbcbcbc}}}}}"));
+    }
+
+    #[test]
+    fn symbol_quantifiers() {
+        let nfa = Nfa::from(Parser::new(r"a*(bc?)+c?").parse().unwrap());
+
+        println!("{}", &nfa);
+        assert!(nfa.simulate("b"));
+        assert!(nfa.simulate("aaaaaaaabcbbbbbbcc"));
+        assert!(nfa.simulate("bbcc"));
+        assert!(!nfa.simulate("aaaaabcbccc"));
     }
 }
