@@ -171,7 +171,7 @@ mod tests {
     fn concat() {
         let nfa = Nfa::from(Parser::new("abc🌕").parse().unwrap());
 
-        eprintln!("{}", nfa);
+        // eprintln!("{}", nfa);
 
         assert!(nfa.simulate("abc🌕"));
         assert!(!nfa.simulate("abd🌕"));
@@ -183,7 +183,7 @@ mod tests {
     fn empty() {
         let nfa = Nfa::from(Parser::new("").parse().unwrap());
 
-        eprintln!("{}", nfa);
+        // eprintln!("{}", nfa);
 
         assert!(nfa.simulate(""));
         assert!(!nfa.simulate("a"));
@@ -209,7 +209,7 @@ mod tests {
     fn lit() {
         let nfa = Nfa::from(Parser::new("a").parse().unwrap());
 
-        eprintln!("{}", nfa);
+        // eprintln!("{}", nfa);
 
         assert!(nfa.simulate("a"));
         assert!(!nfa.simulate("b"));
@@ -219,7 +219,7 @@ mod tests {
     fn group() {
         let nfa = Nfa::from(Parser::new("(abc)(ac)🌕").parse().unwrap());
 
-        eprintln!("{}", nfa);
+        // eprintln!("{}", nfa);
 
         assert!(nfa.simulate("abcac🌕"));
         assert!(!nfa.simulate("bcac🌕"));
@@ -230,7 +230,7 @@ mod tests {
     fn range_quantifier() {
         let nfa = Nfa::from(Parser::new(r"a{3}(bc){2,}\}{2,4}").parse().unwrap());
 
-        eprintln!("{}", nfa);
+        // eprintln!("{}", nfa);
 
         assert!(nfa.simulate("aaabcbcbc}}}"));
         assert!(nfa.simulate("aaabcbcbcbcbcbcbcbcbcbcbc}}}}"));
@@ -245,7 +245,8 @@ mod tests {
     fn symbol_quantifiers() {
         let nfa = Nfa::from(Parser::new(r"a*(bc?)+c?").parse().unwrap());
 
-        println!("{}", &nfa);
+        // eprintln!("{}", nfa);
+
         assert!(nfa.simulate("b"));
         assert!(nfa.simulate("aaaaaaaabcbbbbbbcc"));
         assert!(nfa.simulate("bbcc"));
