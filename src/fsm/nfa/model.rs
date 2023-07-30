@@ -8,7 +8,7 @@ pub(super) type StateId = usize;
 /// Needs to be a `BTreeMap` for `std::hash::Hash` to be implemented.
 pub(super) type StateCounters = BTreeMap<StateId, usize>;
 
-pub(super) struct Nfa {
+pub(crate) struct Nfa {
     pub(super) start_state: StateId,
     pub(super) states: Vec<State>,
 }

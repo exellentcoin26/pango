@@ -1,4 +1,4 @@
-pub(super) trait Simulatable {
+pub(crate) trait Simulate {
     /// Simulates the finite-state machine from start to finish and returns whether it accepts the
     /// input.
     fn run(mut self, input: &str) -> bool
@@ -25,4 +25,16 @@ pub(super) trait Simulatable {
             .last()
             .unwrap_or(self.is_accepting())
     }
+}
+
+pub(crate) trait Simulatable {
+    type Simulator<'a>
+    where
+        Self: 'a;
+
+    /// Simulate the finite-state machine on the input and return whether it accepts.
+    fn simulate(&self, input: &str) -> bool;
+
+    /// Create a simulator from the finite-state machine.
+    fn to_simulator<'a>(&'a self) -> Self::Simulator<'a>;
 }

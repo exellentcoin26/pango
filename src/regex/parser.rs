@@ -16,10 +16,10 @@ pub(crate) struct Parser<'a> {
     errors: Vec<ParseError>,
 }
 
-pub(crate) type ParseResult<T> = core::result::Result<T, Vec<ParseError>>;
+pub type ParseResult<T> = core::result::Result<T, Vec<ParseError>>;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ParseError {
+pub struct ParseError {
     message: String,
     pos: (usize, usize),
 }

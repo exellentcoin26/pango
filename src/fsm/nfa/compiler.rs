@@ -8,29 +8,44 @@ use crate::regex::{
 pub(super) struct Compiler {
     /// Current NFA being compiled from the regex syntax tree.
     nfa: NfaBuilder,
+    /// `StateId` of the final state of the NFA used by the compilation.
+    final_state: StateId,
 }
 
 impl From<Ast> for Nfa {
     fn from(value: Ast) -> Self {
-        Compiler::new().compile(&value.0)
+        Compiler::new().with_expression(value).compile()
+    }
+}
+
+impl From<Vec<Ast>> for Nfa {
+    fn from(value: Vec<Ast>) -> Self {
+        value
+            .into_iter()
+            .fold(Compiler::new(), |compiler, expr| {
+                compiler.with_expression(expr)
+            })
+            .compile()
     }
 }
 
 impl Compiler {
     pub(super) fn new() -> Self {
-        Self {
-            nfa: Nfa::builder(false).with_state(true),
-        }
-    }
-
-    pub(super) fn compile(mut self, expr: &ExprKind) -> Nfa {
-        let end_state = self
-            .nfa
+        let nfa = Nfa::builder(false).with_state(true);
+        let final_state = nfa
             .get_final_state_ids()
             .next()
             .expect("exected at least one final state for the NFA to start with");
 
-        self.expr(expr, self.nfa.start_state, end_state);
+        Self { nfa, final_state }
+    }
+
+    pub(super) fn with_expression(mut self, expr: Ast) -> Self {
+        self.expr(&expr.0, self.nfa.start_state, self.final_state);
+        self
+    }
+
+    pub(super) fn compile(self) -> Nfa {
         self.nfa.build()
     }
 

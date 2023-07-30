@@ -1,5 +1,5 @@
 use super::{
-    super::traits::Simulatable,
+    super::traits::{Simulatable, Simulate},
     model::{Input, Nfa, State, StateCounters, StateId},
 };
 use std::collections::{HashSet, VecDeque};
@@ -8,7 +8,7 @@ use std::collections::{HashSet, VecDeque};
 // can result in collisions.
 
 #[derive(Clone)]
-pub(super) struct NfaSimulator<'a> {
+pub(crate) struct NfaSimulator<'a> {
     /// Nfa we are simulating.
     nfa: &'a Nfa,
     /// A list of runs the simulator is currently in.
@@ -99,7 +99,19 @@ impl<'a> NfaSimulator<'a> {
     }
 }
 
-impl Simulatable for NfaSimulator<'_> {
+impl Simulatable for Nfa {
+    type Simulator<'a> = NfaSimulator<'a>;
+
+    fn simulate(&self, input: &str) -> bool {
+        NfaSimulator::new(self).feed_str(input)
+    }
+
+    fn to_simulator<'a>(&'a self) -> Self::Simulator<'a> {
+        NfaSimulator::new(self)
+    }
+}
+
+impl Simulate for NfaSimulator<'_> {
     fn is_accepting(&self) -> bool {
         self.runs
             .iter()
@@ -146,14 +158,9 @@ impl Simulatable for NfaSimulator<'_> {
     }
 }
 
-impl Nfa {
-    pub(super) fn simulate(&self, input: &str) -> bool {
-        NfaSimulator::new(self).feed_str(input)
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::Simulatable;
     use crate::{fsm::nfa::model::Nfa, regex::parser::Parser};
 
     #[test]
