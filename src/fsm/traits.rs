@@ -3,16 +3,6 @@ use super::StateId;
 use std::collections::BTreeSet;
 
 pub trait Simulate {
-    /// Simulates the finite-state machine from start to finish and returns whether it accepts the
-    /// input.
-    fn run(mut self, input: &str) -> bool
-    where
-        Self: Sized,
-    {
-        let accept = self.is_accepting();
-        input.chars().map(|c| self.feed(c)).last().unwrap_or(accept)
-    }
-
     /// Returns whether the finite-state machine accepts when no input is given.
     fn is_accepting(&self) -> bool;
 
