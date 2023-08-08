@@ -1,11 +1,14 @@
-use super::model::{Input, Nfa, NfaBuilder, StateId};
+use super::{
+    model::{Input, Nfa, NfaBuilder},
+    StateId,
+};
 use crate::regex::{
     ast::{Ast, ExprKind},
     tokenizer::QuantifierKind,
 };
 
 /// Regex AST to NFA compiler.
-pub(super) struct Compiler {
+pub(crate) struct Compiler {
     /// Current NFA being compiled from the regex syntax tree.
     nfa: NfaBuilder,
     /// `StateId` of the final state of the NFA used by the compilation.
@@ -30,7 +33,7 @@ impl From<Vec<Ast>> for Nfa {
 }
 
 impl Compiler {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let nfa = Nfa::builder(false).with_state(true);
         let final_state = nfa
             .get_final_state_ids()
@@ -40,12 +43,21 @@ impl Compiler {
         Self { nfa, final_state }
     }
 
-    pub(super) fn with_expression(mut self, expr: Ast) -> Self {
+    pub(crate) fn new_final(&mut self) -> StateId {
+        self.final_state = self.nfa.add_state(true);
+        self.final_state
+    }
+
+    pub(crate) fn with_expression(mut self, expr: Ast) -> Self {
         self.expr(&expr.0, self.nfa.start_state, self.final_state);
         self
     }
 
-    pub(super) fn compile(self) -> Nfa {
+    pub(crate) fn add_expression(&mut self, expr: Ast) {
+        self.expr(&expr.0, self.nfa.start_state, self.final_state);
+    }
+
+    pub(crate) fn compile(self) -> Nfa {
         self.nfa.build()
     }
 

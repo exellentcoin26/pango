@@ -1,14 +1,14 @@
+use super::StateId;
 use crate::regex::{ast, tokenizer::QuantifierKind};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 // TODO: Clean up expects and panics to be `Option` and `Result` types.
 
-pub(super) type StateId = usize;
-
 /// Needs to be a `BTreeMap` for `std::hash::Hash` to be implemented.
 pub(super) type StateCounters = BTreeMap<StateId, usize>;
 
-pub(crate) struct Nfa {
+#[derive(Clone)]
+pub struct Nfa {
     pub(super) start_state: StateId,
     pub(super) states: Vec<State>,
 }
@@ -19,6 +19,7 @@ pub(crate) struct Nfa {
 /// unique within an `Nfa`, thus checking equality is implemented using the id and NOT the other
 /// fields. This results in possibly incorrect behaviour when comparing with states from other
 /// `Nfa`'s.
+#[derive(Clone)]
 pub(super) struct State {
     /// Id of the state used by other states as a pointer.
     pub(super) id: StateId,
@@ -30,7 +31,7 @@ pub(super) struct State {
 
 type Transitions = HashMap<Input, HashSet<StateId>>;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) enum Input {
     /// Regular input to the NFA.
     Literal(ast::LiteralKind),

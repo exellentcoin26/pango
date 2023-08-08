@@ -1,4 +1,7 @@
-use super::model::{Nfa, State, StateId};
+use super::{
+    model::{Nfa, State},
+    StateId,
+};
 
 impl std::fmt::Display for Nfa {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

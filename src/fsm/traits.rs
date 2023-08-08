@@ -1,4 +1,8 @@
-pub(crate) trait Simulate {
+use super::StateId;
+
+use std::collections::BTreeSet;
+
+pub trait Simulate {
     /// Simulates the finite-state machine from start to finish and returns whether it accepts the
     /// input.
     fn run(mut self, input: &str) -> bool
@@ -16,6 +20,9 @@ pub(crate) trait Simulate {
     /// accepting state.
     fn feed(&mut self, input: char) -> bool;
 
+    /// Checks whether the character can be fed to the finite-state machine.
+    fn can_feed(&self, input: char) -> bool;
+
     /// Feeds an entire string to the finite-state machine at once and returns whether it has
     /// reached an accepting state.
     fn feed_str(&mut self, input: &str) -> bool {
@@ -27,8 +34,13 @@ pub(crate) trait Simulate {
     }
 }
 
-pub(crate) trait Simulatable {
-    type Simulator<'a>
+pub(crate) trait NDSimulate {
+    /// Get the final states the simulator is currently in.
+    fn get_current_final_states(&self) -> BTreeSet<StateId>;
+}
+
+pub trait Simulatable {
+    type Simulator<'a>: Simulate
     where
         Self: 'a;
 
@@ -36,5 +48,5 @@ pub(crate) trait Simulatable {
     fn simulate(&self, input: &str) -> bool;
 
     /// Create a simulator from the finite-state machine.
-    fn to_simulator<'a>(&'a self) -> Self::Simulator<'a>;
+    fn to_simulator(&self) -> Self::Simulator<'_>;
 }

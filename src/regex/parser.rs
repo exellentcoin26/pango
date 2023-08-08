@@ -16,7 +16,7 @@ pub(crate) struct Parser<'a> {
     errors: Vec<ParseError>,
 }
 
-pub type ParseResult<T> = core::result::Result<T, Vec<ParseError>>;
+pub type ParseResult<T> = core::result::Result<T, W<Vec<ParseError>>>;
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
@@ -24,7 +24,7 @@ pub struct ParseError {
     pos: (usize, usize),
 }
 
-impl core::fmt::Display for ParseError {
+impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
@@ -33,6 +33,18 @@ impl core::fmt::Display for ParseError {
         )
     }
 }
+
+impl std::fmt::Display for W<Vec<ParseError>> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for err in self.0.iter() {
+            writeln!(f, "{}", err)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl std::error::Error for W<Vec<ParseError>> {}
 
 impl<'a> Parser<'a> {
     pub(crate) fn new(input: &'a str) -> Self {
@@ -50,8 +62,8 @@ impl<'a> Parser<'a> {
         match self.expression() {
             Ok(expr) => Ok(Ast(expr)),
             Err(mut errs) => {
-                self.errors.append(&mut errs);
-                Err(self.errors.clone())
+                self.errors.append(&mut errs.0);
+                Err(W(self.errors.clone()))
             }
         }
     }
@@ -83,10 +95,10 @@ impl<'a> Parser<'a> {
     /// Rule: `sub_expression ::= sub_exrpession_item+`
     fn sub_expression(&mut self) -> ParseResult<Vec<ast::ExprKind>> {
         if self.tokens.peek().is_none() {
-            return Err(vec![ParseError {
+            return Err(W(vec![ParseError {
                 message: "expected at least one sub expression".to_string(),
                 pos: self.get_current_token_position(),
-            }]);
+            }]));
         }
 
         let mut literals = Vec::new();
@@ -107,7 +119,7 @@ impl<'a> Parser<'a> {
     /// Rule: `sub_expression_item ::= match | group`
     fn sub_expression_item(&mut self) -> ParseResult<ast::ExprKind> {
         let Some(Token {pos: _, kind}) = self.tokens.peek() else {
-            return Err(vec![ParseError {message: "expected at least one token for the subexpression".to_string(), pos: self.get_current_token_position()}])
+            return Err(W(vec![ParseError {message: "expected at least one token for the subexpression".to_string(), pos: self.get_current_token_position()}]))
         };
 
         match kind {
@@ -126,10 +138,10 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::LeftParen)
             })
         ) {
-            return Err(vec![ParseError {
+            return Err(W(vec![ParseError {
                 message: "expected LEFT_PAREN".to_string(),
                 pos: self.get_current_token_position(),
-            }]);
+            }]));
         }
 
         // expression
@@ -143,10 +155,10 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::RightParen)
             })
         ) {
-            return Err(vec![ParseError {
+            return Err(W(vec![ParseError {
                 message: "expected RIGTH_PAREN".to_string(),
                 pos: self.get_current_token_position(),
-            }]);
+            }]));
         }
 
         // QUANTIFIER
@@ -205,10 +217,10 @@ impl<'a> Parser<'a> {
             }
 
             _ => {
-                return Err(vec![ParseError {
+                return Err(W(vec![ParseError {
                     message: "expected MATCH, CHARACTER_CLASS or LEFT_BRACKET".to_string(),
                     pos: self.get_current_token_position(),
-                }]);
+                }]));
             }
         };
 
@@ -225,10 +237,10 @@ impl<'a> Parser<'a> {
                 kind: TokenKind::Operator(OperatorKind::LeftBracket)
             })
         ) {
-            return Err(vec![ParseError {
+            return Err(W(vec![ParseError {
                 message: "expected LEFT_BRACKET".to_string(),
                 pos: self.get_current_token_position(),
-            }]);
+            }]));
         }
 
         // CARRET?
@@ -246,10 +258,10 @@ impl<'a> Parser<'a> {
         // character_group_item+
 
         if self.tokens.peek().is_none() {
-            return Err(vec![ParseError {
+            return Err(W(vec![ParseError {
                 message: "expected at least one character group item".to_string(),
                 pos: self.get_current_token_position(),
-            }]);
+            }]));
         }
 
         let mut literals = Vec::new();
@@ -295,10 +307,10 @@ impl<'a> Parser<'a> {
                                 kind: Match(end),
                             }) => ast::GroupedLiteralKind::Range(start, end),
                             _ => {
-                                return Err(vec![ParseError {
+                                return Err(W(vec![ParseError {
                                     message: "expected MATCH".to_string(),
                                     pos: self.get_current_token_position(),
-                                }]);
+                                }]));
                             }
                         }
                     } else {
@@ -307,19 +319,19 @@ impl<'a> Parser<'a> {
                 }
 
                 _ => {
-                    return Err(vec![ParseError {
+                    return Err(W(vec![ParseError {
                         message: "expected CHARACTER_CLASS or CHARACTER".to_string(),
                         pos,
-                    }])
+                    }]));
                 }
             };
 
             Ok(grouped_literal_kind)
         } else {
-            Err(vec![ParseError {
+            Err(W(vec![ParseError {
                 message: "expected at least one token for the character group item".to_string(),
                 pos: self.get_current_token_position(),
-            }])
+            }]))
         }
     }
 
@@ -358,7 +370,6 @@ mod tests {
     #[test]
     fn foo() {
         let mut parser = Parser::new(r"¡0¡¡¡¡(\\)¡¡0");
-        // dbg!(parser.tokens.collect::<Vec<_>>());
         parser.parse().unwrap();
     }
 }

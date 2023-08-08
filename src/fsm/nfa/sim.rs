@@ -1,16 +1,23 @@
 use super::{
-    super::traits::{Simulatable, Simulate},
-    model::{Input, Nfa, State, StateCounters, StateId},
+    super::{
+        traits::{NDSimulate, Simulatable, Simulate},
+        StateId,
+    },
+    model::{Input, Nfa, State, StateCounters},
 };
-use std::collections::{HashSet, VecDeque};
+
+use std::{
+    borrow::Cow,
+    collections::{BTreeSet, HashSet, VecDeque},
+};
 
 // TODO: Refactor runs to use hash as an id for keeping track instead of cloning. Note that this
 // can result in collisions.
 
 #[derive(Clone)]
-pub(crate) struct NfaSimulator<'a> {
+pub struct NfaSimulator<'a> {
     /// Nfa we are simulating.
-    nfa: &'a Nfa,
+    nfa: Cow<'a, Nfa>,
     /// A list of runs the simulator is currently in.
     runs: Vec<Run>,
 }
@@ -44,14 +51,13 @@ impl Run {
 }
 
 impl<'a> NfaSimulator<'a> {
-    fn new(nfa: &'a Nfa) -> Self {
-        Self {
-            nfa,
-            runs: nfa
-                .eps_closure(nfa.start_state)
-                .map(Run::new)
-                .collect::<Vec<_>>(),
-        }
+    fn new(nfa: Cow<'a, Nfa>) -> Self {
+        let runs = nfa
+            .eps_closure(nfa.start_state)
+            .map(Run::new)
+            .collect::<Vec<_>>();
+
+        Self { nfa, runs }
     }
 
     fn eps_closure(&self, run: Run) -> impl Iterator<Item = Run> {
@@ -103,11 +109,11 @@ impl Simulatable for Nfa {
     type Simulator<'a> = NfaSimulator<'a>;
 
     fn simulate(&self, input: &str) -> bool {
-        NfaSimulator::new(self).feed_str(input)
+        NfaSimulator::new(Cow::Borrowed(self)).feed_str(input)
     }
 
-    fn to_simulator<'a>(&'a self) -> Self::Simulator<'a> {
-        NfaSimulator::new(self)
+    fn to_simulator(&self) -> Self::Simulator<'_> {
+        NfaSimulator::new(Cow::Borrowed(self))
     }
 }
 
@@ -153,8 +159,53 @@ impl Simulate for NfaSimulator<'_> {
 
         self.runs = updated_runs;
 
-        dbg!(input, &self.runs);
-        dbg!(self.is_accepting())
+        #[cfg(debug_assertions)]
+        {
+            dbg!(input, &self.runs);
+            dbg!(self.is_accepting());
+        }
+
+        self.is_accepting()
+    }
+
+    fn can_feed(&self, input: char) -> bool {
+        for Run {
+            state_id,
+            state_counters,
+        } in self.runs.iter()
+        {
+            let State { transitions, .. } = self.nfa.get_state(*state_id);
+
+            // Check for every transition if the input can make that transition.
+
+            if transitions.keys().any(|expected| expected.can_take(input)) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+impl NDSimulate for NfaSimulator<'_> {
+    fn get_current_final_states(&self) -> BTreeSet<StateId> {
+        let final_state_ids = self
+            .nfa
+            .get_final_states()
+            .map(|s| s.id)
+            .collect::<HashSet<StateId>>();
+
+        self.runs
+            .iter()
+            .filter_map(|Run { state_id, .. }| {
+                if final_state_ids.contains(state_id) {
+                    Some(state_id)
+                } else {
+                    None
+                }
+            })
+            .copied()
+            .collect::<BTreeSet<_>>()
     }
 }
 
