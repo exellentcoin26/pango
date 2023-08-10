@@ -17,7 +17,12 @@ pub struct Lexer<'input, TokenKind, Fsm: Simulatable> {
     /// machine decide the token kind.
     fsm: Fsm,
     /// Map of `StateId` from the FSM to a `TokenKind`. Usually this will be an enum.
-    tokens: BTreeMap<StateId, TokenKind>,
+    tokens: BTreeMap<StateId, TokenKindGenerator<TokenKind>>,
+}
+
+enum TokenKindGenerator<TokenKind> {
+    Map(Box<dyn FnMut(&str) -> TokenKind>),
+    Unit(TokenKind),
 }
 
 #[derive(Debug)]
@@ -79,10 +84,17 @@ where
                     .expect("expected a single final state");
 
                 token_kind = Some(
-                    self.tokens
-                        .get(&final_state)
+                    match self
+                        .tokens
+                        .get_mut(&final_state)
                         .expect("final state should match a single token")
-                        .clone(),
+                    {
+                        TokenKindGenerator::Map(token_kind_gen) => {
+                            token_kind_gen(&self.iter.get_token().source)
+                        }
+
+                        TokenKindGenerator::Unit(token_kind) => token_kind.clone(),
+                    },
                 );
             }
         }
@@ -105,7 +117,7 @@ impl<TokenKind> Lexer<'_, TokenKind, Nfa> {
 
 pub struct LexerGenerator<TokenKind> {
     fsm_compiler: NfaCompiler,
-    tokens: BTreeMap<StateId, TokenKind>,
+    tokens: BTreeMap<StateId, TokenKindGenerator<TokenKind>>,
 }
 
 impl<TokenKind> Default for LexerGenerator<TokenKind> {
@@ -122,7 +134,27 @@ impl<TokenKind> LexerGenerator<TokenKind> {
         Self::default()
     }
 
+    #[inline]
     pub fn with_token(mut self, token: &str, token_kind: TokenKind) -> ParseResult<Self> {
+        self.add_token(token, TokenKindGenerator::Unit(token_kind))?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn with_token_map(
+        mut self,
+        token: &str,
+        token_kind_map: Box<dyn FnMut(&str) -> TokenKind>,
+    ) -> ParseResult<Self> {
+        self.add_token(token, TokenKindGenerator::Map(token_kind_map))?;
+        Ok(self)
+    }
+
+    fn add_token(
+        &mut self,
+        token: &str,
+        token_kind: TokenKindGenerator<TokenKind>,
+    ) -> ParseResult<()> {
         // start a new token in the finite-state machine
         let token_final_state = self.fsm_compiler.new_final();
 
@@ -131,7 +163,7 @@ impl<TokenKind> LexerGenerator<TokenKind> {
 
         // bind the new final state to the token_kind.
         self.tokens.insert(token_final_state, token_kind);
-        Ok(self)
+        Ok(())
     }
 
     pub fn tokenize(self, input: &str) -> Lexer<TokenKind, Nfa> {

@@ -74,8 +74,8 @@ impl<'a> InputIter<'a> {
         std::mem::replace(&mut self.current_token, new_token)
     }
 
-    pub(super) fn get_token(&self) -> InputIterToken {
-        self.current_token.clone()
+    pub(super) fn get_token(&self) -> &InputIterToken {
+        &self.current_token
     }
 
     pub(super) fn accept_suffix(&mut self) {
