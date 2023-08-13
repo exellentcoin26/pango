@@ -1,39 +1,75 @@
-use super::model::{Input, Nfa, NfaBuilder, StateId};
+use super::{
+    model::{Input, Nfa, NfaBuilder},
+    StateId,
+};
 use crate::regex::{
     ast::{Ast, ExprKind},
     tokenizer::QuantifierKind,
 };
 
 /// Regex AST to NFA compiler.
-pub(super) struct Compiler {
+pub(crate) struct Compiler {
     /// Current NFA being compiled from the regex syntax tree.
     nfa: NfaBuilder,
+    /// `StateId` of the final state of the NFA used by the compilation.
+    final_state: StateId,
 }
 
 impl From<Ast> for Nfa {
     fn from(value: Ast) -> Self {
-        Compiler::new().compile(&value.0)
+        Compiler::new().with_expression(value).compile()
+    }
+}
+
+impl From<Vec<Ast>> for Nfa {
+    fn from(value: Vec<Ast>) -> Self {
+        value
+            .into_iter()
+            .fold(Compiler::new(), |compiler, expr| {
+                compiler.with_expression(expr)
+            })
+            .compile()
     }
 }
 
 impl Compiler {
-    pub(super) fn new() -> Self {
-        Self {
-            nfa: Nfa::builder(false).with_state(true),
-        }
-    }
-
-    pub(super) fn compile(mut self, expr: &ExprKind) -> Nfa {
-        let end_state = self
-            .nfa
+    /// Creates a NFA compiler with one start state and one final state
+    /// configured.
+    pub(crate) fn new() -> Self {
+        let nfa = Nfa::builder(false).with_state(true);
+        let final_state = nfa
             .get_final_state_ids()
             .next()
             .expect("exected at least one final state for the NFA to start with");
 
-        self.expr(expr, self.nfa.start_state, end_state);
+        Self { nfa, final_state }
+    }
+
+    /// Creates a new final state and returns the `StateId` of the new state.
+    pub(crate) fn new_final(&mut self) -> StateId {
+        self.final_state = self.nfa.add_state(true);
+        self.final_state
+    }
+
+    /// Compiles the regex expression into the NFA.
+    pub(crate) fn with_expression(mut self, expr: Ast) -> Self {
+        self.expr(&expr.0, self.nfa.start_state, self.final_state);
+        self
+    }
+
+    /// Compiles the regex expression into the NFA.
+    pub(crate) fn add_expression(&mut self, expr: Ast) {
+        self.expr(&expr.0, self.nfa.start_state, self.final_state);
+    }
+
+    /// Builds the currently compiled NFA and checks whether the NFA is valid
+    /// (e.g. transitions between existing states)
+    pub(crate) fn compile(self) -> Nfa {
         self.nfa.build()
     }
 
+    /// Creates a new state with a quantifier transition and returns the
+    /// `StateId`.
     fn insert_quantifier_state(
         &mut self,
         quantifier: QuantifierKind,
@@ -48,13 +84,15 @@ impl Compiler {
         quantifier_state
     }
 
+    /// Compiles the exression into the NFA.
     #[allow(clippy::only_used_in_recursion)]
     fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
         match expr {
             ExprKind::Concat(exprs) => {
-                // Run once for the first expression so that it is connected to the expected start
-                // state. Run the intermediate expressions to connect them in a chain. Run once for
-                // the last expression so it is connected to the expected end state.
+                // Run once for the first expression so that it is connected to the expected
+                // start state. Run the intermediate expressions to connect them
+                // in a chain. Run once for the last expression so it is
+                // connected to the expected end state.
 
                 let mut current_state = start;
 

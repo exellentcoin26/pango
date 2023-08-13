@@ -242,7 +242,7 @@ proptest! {
         let regex = r.to_string();
         Parser::new(&regex).parse().expect(&regex);
 
-        #[cfg(debug)]
+        #[cfg(debug_assertions)]
         eprintln!("{:?}", &r);
     }
 }

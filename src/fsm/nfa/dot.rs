@@ -1,4 +1,7 @@
-use super::model::{Nfa, State, StateId};
+use super::{
+    model::{Nfa, State},
+    StateId,
+};
 
 impl std::fmt::Display for Nfa {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -7,7 +10,8 @@ impl std::fmt::Display for Nfa {
 }
 
 impl Nfa {
-    /// Converts the NFA to dot language using the grahviz dot language format.
+    /// Converts the NFA to dot language using the [grahviz](https://graphviz.org/docs/layouts/dot/)
+    /// dot language format.
     #[allow(unused)]
     pub(super) fn to_dot(&self) -> String {
         let final_dot = format!(
@@ -36,6 +40,8 @@ impl Nfa {
         )
     }
 
+    /// Converts the transitions to the dot format and returns an iterator over
+    /// it.
     fn transition_dot(&self) -> impl Iterator<Item = String> + '_ {
         self.states.iter().flat_map(|state| {
             state.transition_tuples().map(|(start, dest, label)| {
@@ -46,6 +52,7 @@ impl Nfa {
 }
 
 impl State {
+    /// Creates an flattened iterator over the transitions from a `State`.
     fn transition_tuples(&self) -> impl Iterator<Item = (StateId, StateId, String)> + '_ {
         self.transitions
             .iter()

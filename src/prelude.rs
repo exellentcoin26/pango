@@ -1,2 +1,3 @@
+/// Generic wrapper tuple struct for the new-type pattern.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub(crate) struct W<T>(pub T);
+pub struct W<T>(pub T);

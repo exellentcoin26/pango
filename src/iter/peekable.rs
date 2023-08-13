@@ -44,15 +44,16 @@ pub trait Peekableable: Iterator {
     /// ```
     fn peek(&mut self) -> Option<&Self::Item>;
 
-    /// Returns a mutable reference to the next() value without advancing the iterator.
+    /// Returns a mutable reference to the next() value without advancing the
+    /// iterator.
     ///
     /// Like [`next`], if there is a value, it is wrapped in a `Some(T)`.
     /// But if the iteration is over, `None` is returned.
     ///
-    /// Because `peek_mut()` returns a reference, and many iterators iterate over
-    /// references, there can be a possibly confusing situation where the
-    /// return value is a double reference. You can see this effect in the examples
-    /// below.
+    /// Because `peek_mut()` returns a reference, and many iterators iterate
+    /// over references, there can be a possibly confusing situation where
+    /// the return value is a double reference. You can see this effect in
+    /// the examples below.
     ///
     /// [`next`]: Iterator::next
     ///
@@ -79,10 +80,11 @@ pub trait Peekableable: Iterator {
     /// ```
     fn peek_mut(&mut self) -> Option<&mut Self::Item>;
 
-    /// Consume and return the next value of this iterator if a condition is true.
+    /// Consume and return the next value of this iterator if a condition is
+    /// true.
     ///
-    /// If `func` returns `true` for the next value of this iterator, consume and return it.
-    /// Otherwise, return `None`.
+    /// If `func` returns `true` for the next value of this iterator, consume
+    /// and return it. Otherwise, return `None`.
     ///
     /// # Examples
     /// Consume a number if it's equal to 0.
@@ -150,7 +152,8 @@ impl<I: Iterator> Peekableable for Peekable<I> {
 /// Peekable iterator, which caches the last requested item.
 pub struct CachedPeekable<I: Iterator> {
     iter: Peekable<I>,
-    /// Remembers the item we last read (the item the iterator is currently "on").
+    /// Remembers the item we last read (the item the iterator is currently
+    /// "on").
     current: Option<Option<I::Item>>,
 }
 
