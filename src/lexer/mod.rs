@@ -36,7 +36,7 @@ enum TokenKindGenerator<TokenKind> {
 }
 
 /// [`Token`] returned by the [`Lexer`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token<TokenKind>
 where
     TokenKind: Clone,
@@ -55,7 +55,7 @@ where
     TokenKind: Clone,
 {
     /// Creates a new [`Token`] from the [`InputIterToken`].
-    pub(self) fn from_input_iter_token(
+    fn from_input_iter_token(
         InputIterToken { source, pos }: InputIterToken,
         kind: TokenKind,
     ) -> Self {
@@ -211,5 +211,78 @@ impl<TokenKind> LexerGenerator<TokenKind> {
             fsm: self.fsm_compiler.compile(),
             tokens: self.tokens,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    macro_rules! tokens {
+        ($(($start:expr, $end:expr, $source:expr) => $token_kind:expr),*) => {
+           [$(Token {kind: $token_kind, source: $source.into(), pos: ($start, $end) }),*]
+        };
+    }
+
+    macro_rules! assert_eq_tokens {
+        ($lhs:expr, $rhs:expr) => {
+            for (expected, actual) in $lhs.into_iter().zip($rhs) {
+                assert_eq!(expected, actual);
+            }
+        };
+    }
+
+    #[allow(unused)]
+    macro_rules! print_tokens {
+        ($tokens:expr) => {
+            for Token {
+                kind,
+                source,
+                pos: (start, end),
+            } in $tokens
+            {
+                println!("({}, {}, \"{}\") => {:?},", start, end, source, kind);
+            }
+        };
+    }
+
+    use super::{Lexer, Token};
+
+    #[test]
+    fn lexer() -> Result<(), Box<dyn std::error::Error>> {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Foo {
+            A,
+            B,
+            C,
+            D { len: usize },
+            E,
+        }
+
+        let tokens = Lexer::builder()
+            .with_token("aaaa", Foo::A)?
+            .with_token("b{4,}", Foo::B)?
+            .with_token("b{4}", Foo::C)?
+            .with_token_map(
+                "d*",
+                Box::new(|token_source| Foo::D {
+                    len: token_source.len(),
+                }),
+            )?
+            .with_token(r"/\* .*", Foo::A)?
+            .with_token(r"/\* .* \*/", Foo::E)?
+            .tokenize(
+                "bbbbbbbaaaabbbbddddddddddddddddd/* foo bar baz **** * /* foo bar baz ***** */",
+            );
+
+        let expected = tokens! [
+            (0, 7, "bbbbbbb") => Foo::B,
+            (7, 11, "aaaa") => Foo::A,
+            (11, 15, "bbbb") => Foo::B,
+            (15, 32, "ddddddddddddddddd") => Foo::D { len: 17 },
+            (32, 77, "/* foo bar baz **** * /* foo bar baz ***** */") => Foo::A
+        ];
+
+        assert_eq_tokens!(expected, tokens);
+
+        Ok(())
     }
 }
