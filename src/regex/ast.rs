@@ -1,4 +1,4 @@
-//! Regex ast based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
+//! Regex ast based on this grammar: <https://github.com/kean/Regex/blob/main/grammar.ebnf>
 //!
 //! # Grammar
 //!
@@ -36,7 +36,8 @@ pub(crate) enum ExprKind {
 /// Literal kind that appears in an expression (e.g., `b`, `[^ab]`).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum LiteralKind {
-    /// A single token (unicode character constructs can consist multiple characters).
+    /// A single token (unicode character constructs can consist multiple
+    /// characters).
     Match(char),
     /// A shorthand for character groups (e.g., `\w`, `\D`, `.`).
     Class(tokenizer::ClassKind),
@@ -50,7 +51,8 @@ pub(crate) enum LiteralKind {
 /// literal that appears in a group.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum GroupedLiteralKind {
-    /// A single token (unicode character constructs can consist multiple characters).
+    /// A single token (unicode character constructs can consist multiple
+    /// characters).
     Match(char),
     /// A shorthand for character groups (e.g., `\w`, `\D`, `.`).
     Class(tokenizer::ClassKind),
@@ -59,6 +61,7 @@ pub(crate) enum GroupedLiteralKind {
 }
 
 impl LiteralKind {
+    /// Whether `c` is an element of represented alphabet subset.
     pub(crate) fn contains(&self, c: char) -> bool {
         match self {
             LiteralKind::Match(m) => *m == c,
@@ -72,12 +75,14 @@ impl LiteralKind {
 }
 
 impl W<Vec<GroupedLiteralKind>> {
+    /// Whether any of the literals in the group contain `c`.
     fn contains(&self, c: char) -> bool {
         self.0.iter().any(|l| l.contains(c))
     }
 }
 
 impl GroupedLiteralKind {
+    /// Whether the literal contains `c`.
     fn contains(&self, c: char) -> bool {
         match *self {
             GroupedLiteralKind::Match(m) => m == c,

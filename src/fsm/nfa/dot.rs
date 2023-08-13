@@ -40,7 +40,8 @@ impl Nfa {
         )
     }
 
-    /// Converts the transitions to the dot format and returns an iterator over it.
+    /// Converts the transitions to the dot format and returns an iterator over
+    /// it.
     fn transition_dot(&self) -> impl Iterator<Item = String> + '_ {
         self.states.iter().flat_map(|state| {
             state.transition_tuples().map(|(start, dest, label)| {

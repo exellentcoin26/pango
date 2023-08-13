@@ -6,15 +6,15 @@ pub trait Simulate {
     /// Returns whether the finite-state machine accepts when no input is given.
     fn is_accepting(&self) -> bool;
 
-    /// Feeds a single character to the finite-state machine and returns whether it has reached an
-    /// accepting state.
+    /// Feeds a single character to the finite-state machine and returns whether
+    /// it has reached an accepting state.
     fn feed(&mut self, input: char) -> bool;
 
     /// Checks whether the character can be fed to the finite-state machine.
     fn can_feed(&self, input: char) -> bool;
 
-    /// Feeds an entire string to the finite-state machine at once and returns whether it has
-    /// reached an accepting state.
+    /// Feeds an entire string to the finite-state machine at once and returns
+    /// whether it has reached an accepting state.
     fn feed_str(&mut self, input: &str) -> bool {
         input
             .chars()
@@ -34,7 +34,8 @@ pub trait Simulatable {
     where
         Self: 'a;
 
-    /// Simulate the finite-state machine on the input and return whether it accepts.
+    /// Simulate the finite-state machine on the input and return whether it
+    /// accepts.
     fn simulate(&self, input: &str) -> bool;
 
     /// Create a simulator from the finite-state machine.

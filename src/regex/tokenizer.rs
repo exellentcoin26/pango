@@ -7,6 +7,7 @@ use std::{iter::Enumerate, str::Chars};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
+/// Regex tokenenizer.
 pub(super) struct Tokenizer<'a> {
     /// The input the tokenizer is going to tokenize.
     #[allow(unused)]
@@ -16,6 +17,7 @@ pub(super) struct Tokenizer<'a> {
     iter: CachedPeekable<Enumerate<Chars<'a>>>,
 }
 
+/// Regex token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Token {
     /// Information about the kind of token along with the value of the token.
@@ -27,11 +29,13 @@ pub(super) struct Token {
 }
 
 impl Token {
+    /// Creates a new [`Token`].
     pub(super) fn new(kind: TokenKind, pos: (usize, usize)) -> Self {
         Self { kind, pos }
     }
 }
 
+/// Regex token kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TokenKind {
     Class(ClassKind),
@@ -41,6 +45,7 @@ pub(super) enum TokenKind {
     Invalid,
 }
 
+/// Regex class kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum ClassKind {
@@ -53,6 +58,7 @@ pub(crate) enum ClassKind {
     NonWhitespace,
 }
 
+/// Regex operator kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OperatorKind {
     LeftBracket,
@@ -64,6 +70,7 @@ pub(super) enum OperatorKind {
     Minus,
 }
 
+/// Regex quantifier kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum QuantifierKind {
@@ -73,6 +80,7 @@ pub(crate) enum QuantifierKind {
     Range(QuantifierRangeKind),
 }
 
+/// Regex quantifier range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub(crate) enum QuantifierRangeKind {
@@ -107,6 +115,7 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 impl<'a> Tokenizer<'a> {
+    /// Creates a new tokenizer.
     pub(super) fn new(input: &'a str) -> Self {
         Self {
             input,
@@ -340,9 +349,9 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    /// Returns the count of digits and converts them to u32 including the starting digit if present.
-    /// Takes all hexadecimals it can take.
-    /// It only returns Some when the amount was the expected amount.
+    /// Returns the count of digits and converts them to [`u32`] including the
+    /// starting digit if present. Takes all hexadecimals it can take.
+    /// It only returns `Some` when the amount was the expected amount.
     fn take_next_hexadecimals_and_convert_to_u32(
         &mut self,
         max_digits: usize,
@@ -377,6 +386,10 @@ impl<'a> Tokenizer<'a> {
             .fold(start.or(Some(0)), |acc, d| Some(acc?.checked_mul(10)? + d))
     }
 
+    /// Returns the end position of the current token.
+    ///
+    /// Note: The end position points one beyond the last character of the
+    /// token.
     fn get_token_end_cursor_pos(&mut self) -> usize {
         match self.iter.current() {
             Some((cursor_pos, _)) => cursor_pos + 1,
@@ -386,6 +399,7 @@ impl<'a> Tokenizer<'a> {
 }
 
 impl QuantifierKind {
+    /// Whether the count lies in the range of the quantifier.
     pub(crate) fn is_satisfied(&self, count: usize) -> bool {
         match self {
             QuantifierKind::Asterisk => true,
@@ -401,6 +415,7 @@ impl QuantifierKind {
 }
 
 impl ClassKind {
+    /// Whether `c` is an element of the character class.
     pub(super) fn contains(&self, c: char) -> bool {
         match *self {
             ClassKind::Wildcard => true,

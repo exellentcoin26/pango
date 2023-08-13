@@ -1,5 +1,5 @@
 //! Cautious take while implementation making use of [`std::iter::Peekable`].
-//! Inspired by https://stackoverflow.com/questions/28776630/implementing-a-cautious-take-while-using-peekable
+//! Inspired by <https://stackoverflow.com/questions/28776630/implementing-a-cautious-take-while-using-peekable>
 
 use crate::iter::Peekableable;
 

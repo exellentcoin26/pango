@@ -1,4 +1,4 @@
-//! Regex recursive descent parser based on this grammar: https://github.com/kean/Regex/blob/main/grammar.ebnf
+//! Regex recursive descent parser based on this grammar: <https://github.com/kean/Regex/blob/main/grammar.ebnf>
 
 use super::{
     ast::{self, Ast},
@@ -16,8 +16,13 @@ pub(crate) struct Parser<'a> {
     errors: Vec<ParseError>,
 }
 
+/// Whether the paring of the regex succeeded.
 pub type ParseResult<T> = core::result::Result<T, W<Vec<ParseError>>>;
 
+// TODO: Refactor error messages to be enum variants with the
+// [`std::fmt::Display`] trait.
+
+/// Information about the error occurred during parsing.
 #[derive(Debug, Clone)]
 pub struct ParseError {
     message: String,
@@ -47,6 +52,7 @@ impl std::fmt::Display for W<Vec<ParseError>> {
 impl std::error::Error for W<Vec<ParseError>> {}
 
 impl<'a> Parser<'a> {
+    /// Creates a new regex parser from the `input`.
     pub(crate) fn new(input: &'a str) -> Self {
         Self {
             tokens: Tokenizer::new(input).cached_peekable(),
@@ -54,6 +60,9 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses the `input` into a regex [`Ast`].
+    ///
+    /// [`Ast`]: regex::Ast
     pub(crate) fn parse(&mut self) -> ParseResult<ast::Ast> {
         if self.tokens.peek().is_none() {
             return Ok(Ast(ast::ExprKind::Empty));
@@ -227,7 +236,8 @@ impl<'a> Parser<'a> {
         Ok(literal)
     }
 
-    /// Rule: `character_group ::= LEFT_BRACKET CARRET? character_group_item+ RIGHT_BRACKET`
+    /// Rule: `character_group ::= LEFT_BRACKET CARRET? character_group_item+
+    /// RIGHT_BRACKET`
     fn character_group(&mut self) -> ParseResult<ast::LiteralKind> {
         // LEFT_BRACHET
         if !matches!(
@@ -284,7 +294,8 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Rule: `character_group_item ::= CHARACTER_CLASS | character_range | CHARACTER`
+    /// Rule: `character_group_item ::= CHARACTER_CLASS | character_range |
+    /// CHARACTER`
     fn character_group_item(&mut self) -> ParseResult<ast::GroupedLiteralKind> {
         if let Some(Token { pos, kind }) = self.tokens.next() {
             use TokenKind::*;
@@ -335,6 +346,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns the postion of the current token.
     fn get_current_token_position(&mut self) -> (usize, usize) {
         let current = self.tokens.current();
         match (self.tokens.peek(), current) {

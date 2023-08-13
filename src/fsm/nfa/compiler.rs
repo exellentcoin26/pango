@@ -33,7 +33,8 @@ impl From<Vec<Ast>> for Nfa {
 }
 
 impl Compiler {
-    /// Creates a NFA compiler with one start state and one final state configured.
+    /// Creates a NFA compiler with one start state and one final state
+    /// configured.
     pub(crate) fn new() -> Self {
         let nfa = Nfa::builder(false).with_state(true);
         let final_state = nfa
@@ -61,13 +62,14 @@ impl Compiler {
         self.expr(&expr.0, self.nfa.start_state, self.final_state);
     }
 
-    /// Builds the currently compiled NFA and checks whether the NFA is valid (e.g. transitions
-    /// between existing states)
+    /// Builds the currently compiled NFA and checks whether the NFA is valid
+    /// (e.g. transitions between existing states)
     pub(crate) fn compile(self) -> Nfa {
         self.nfa.build()
     }
 
-    /// Creates a new state with a quantifier transition and returns the `StateId`.
+    /// Creates a new state with a quantifier transition and returns the
+    /// `StateId`.
     fn insert_quantifier_state(
         &mut self,
         quantifier: QuantifierKind,
@@ -87,9 +89,10 @@ impl Compiler {
     fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
         match expr {
             ExprKind::Concat(exprs) => {
-                // Run once for the first expression so that it is connected to the expected start
-                // state. Run the intermediate expressions to connect them in a chain. Run once for
-                // the last expression so it is connected to the expected end state.
+                // Run once for the first expression so that it is connected to the expected
+                // start state. Run the intermediate expressions to connect them
+                // in a chain. Run once for the last expression so it is
+                // connected to the expected end state.
 
                 let mut current_state = start;
 

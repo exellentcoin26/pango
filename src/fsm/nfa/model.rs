@@ -16,10 +16,11 @@ pub struct Nfa {
 
 /// A state in the NFA.
 ///
-/// Note (state equality): A state can only be constructed by the [`NfaBuilder`]. It is assumed that the state id is
-/// unique within an [`Nfa`], thus checking equality is implemented using the id and NOT the other
-/// fields. This results in possibly incorrect behaviour when comparing with states from other
-/// [`Nfa`]'s.
+/// Note (state equality): A state can only be constructed by the
+/// [`NfaBuilder`]. It is assumed that the state id is unique within an [`Nfa`],
+/// thus checking equality is implemented using the id and NOT the other fields.
+/// This results in possibly incorrect behaviour when comparing with states from
+/// other [`Nfa`]'s.
 #[derive(Clone)]
 pub(super) struct State {
     /// Id of the state used by other states as a pointer.
@@ -37,9 +38,11 @@ type Transitions = HashMap<Input, HashSet<StateId>>;
 pub(super) enum Input {
     /// Regular input to the NFA.
     Literal(ast::LiteralKind),
-    /// Epsilon input, meaning no input needed (the transition can be made at any time).
+    /// Epsilon input, meaning no input needed (the transition can be made at
+    /// any time).
     Eps,
-    /// Epsilon input, but based on the amount of times the state has been visited.
+    /// Epsilon input, but based on the amount of times the state has been
+    /// visited.
     Quantified(QuantifierKind),
 }
 
@@ -50,8 +53,8 @@ impl Default for Nfa {
 }
 
 impl Nfa {
-    /// Creates a builder which is used to construct an NFA. It has a single start state, which can
-    /// be made final.
+    /// Creates a builder which is used to construct an NFA. It has a single
+    /// start state, which can be made final.
     pub(super) fn builder(start_state_final: bool) -> NfaBuilder {
         NfaBuilder::new(start_state_final)
     }
@@ -68,19 +71,22 @@ impl Nfa {
             .expect("requested state does not exist")
     }
 
-    /// Returns an iterator over read-only references of all final states in the NFA.
+    /// Returns an iterator over read-only references of all final states in the
+    /// NFA.
     pub(super) fn get_final_states(&self) -> impl Iterator<Item = &State> + '_ {
         self.states.iter().filter(|s| s.fin)
     }
 
-    /// Returns an iterator over references to all states in the static epsilon closure of the given
-    /// state.
+    /// Returns an iterator over references to all states in the static epsilon
+    /// closure of the given state.
     ///
-    /// This implementation of the NFA uses quantified transitions which can only be taken when the
-    /// state has been visited 'x' amount of times. This is useful to prevent the exponential
-    /// growth of the NFA when compiling complex regex quantifiers. However, this means that state
-    /// counting has to be done at 'run-time' of the NFA. Information which is not known to the
-    /// [`NfaModel`](self::Nfa).
+    /// This implementation of the NFA uses quantified transitions which can
+    /// only be taken when the state has been visited 'x' amount of times.
+    /// This is useful to prevent the exponential growth of the NFA when
+    /// compiling complex regex quantifiers. However, this means that state
+    /// counting has to be done at 'run-time' of the NFA. Information which is
+    /// not known to the [`NfaModel`](self::Nfa). Instaid a state is always
+    /// assumed to be visited 0 times, when trying quantified transitions.
     pub(super) fn eps_closure(&self, state_id: StateId) -> impl Iterator<Item = StateId> {
         let mut not_visited = VecDeque::from([state_id]);
         let mut result = BTreeSet::from([state_id]);
@@ -128,7 +134,8 @@ impl Input {
 }
 
 impl State {
-    /// Creates a new [`State`] with the given id, whether it is final and the given transitions.
+    /// Creates a new [`State`] with the given id, whether it is final and the
+    /// given transitions.
     fn new(id: StateId, fin: bool, transitions: Transitions) -> Self {
         Self {
             id,
@@ -137,8 +144,8 @@ impl State {
         }
     }
 
-    /// Creates a new [`State`] with the given id and whether it is final. No transitions are
-    /// created.
+    /// Creates a new [`State`] with the given id and whether it is final. No
+    /// transitions are created.
     fn with_id(id: StateId, fin: bool) -> Self {
         Self::new(id, fin, Transitions::new())
     }
@@ -151,7 +158,8 @@ pub(super) struct NfaBuilder {
 }
 
 impl NfaBuilder {
-    /// Creates a new [`NfaBuilder`] with a single start state, which may be final.
+    /// Creates a new [`NfaBuilder`] with a single start state, which may be
+    /// final.
     pub(super) fn new(start_state_final: bool) -> Self {
         Self {
             start_state: 0,
@@ -159,16 +167,17 @@ impl NfaBuilder {
         }
     }
 
-    /// Returns the next [`StateId`] a [`State`] should have. If the state is not created, the id will not
-    /// be taken.
+    /// Returns the next [`StateId`] a [`State`] should have. If the state is
+    /// not created, the id will not be taken.
     fn new_state_id(&self) -> StateId {
         self.states.len()
     }
 
-    /// Builds the [`Nfa`], checks whether all transitions are valid and whether the start state
-    /// exists.
+    /// Builds the [`Nfa`], checks whether all transitions are valid and whether
+    /// the start state exists.
     pub(super) fn build(self) -> Nfa {
-        // Create a set of StateIds present in the NFA and a set of transition destination ids.
+        // Create a set of StateIds present in the NFA and a set of transition
+        // destination ids.
 
         let (state_ids, destination_ids) = self.states.iter().fold(
             (HashSet::new(), HashSet::new()),
@@ -219,6 +228,11 @@ impl NfaBuilder {
         id
     }
 
+    /// Creates a transition between two states using their [`StateIds`].
+    ///
+    /// # Panics
+    ///
+    /// When the `start` or `end` are invalid [`StateId`]'s.
     pub(super) fn add_transition(&mut self, start: StateId, end: StateId, input: Input) {
         self.get_state_mut(start)
             .transitions
@@ -227,6 +241,8 @@ impl NfaBuilder {
             .insert(end);
     }
 
+    /// Creates a new [`State`] with a quantified transition to
+    /// `quantifier_done`.
     pub(super) fn add_quantified_state(
         &mut self,
         fin: bool,
@@ -244,6 +260,11 @@ impl NfaBuilder {
         id
     }
 
+    /// Returns a read-only reference to the requested [`State`].
+    ///
+    /// # Panics
+    ///
+    /// When `state_id` is not a valid [`StateId`].
     pub(super) fn get_state(&self, state_id: StateId) -> &State {
         self.states
             .iter()
@@ -251,6 +272,11 @@ impl NfaBuilder {
             .expect("state does not exist")
     }
 
+    /// Returns a mutable reference to the requested [`State`].
+    ///
+    /// # Panics
+    ///
+    /// When `state_id` is not a valid [`StateId`].
     pub(super) fn get_state_mut(&mut self, state_id: StateId) -> &mut State {
         self.states
             .iter_mut()
@@ -258,6 +284,7 @@ impl NfaBuilder {
             .expect("state does not exist")
     }
 
+    /// Returns an iterator over all final state ids in the NFA.
     pub(super) fn get_final_state_ids(&self) -> impl Iterator<Item = StateId> + '_ {
         self.states
             .iter()
