@@ -33,6 +33,7 @@ impl From<Vec<Ast>> for Nfa {
 }
 
 impl Compiler {
+    /// Creates a NFA compiler with one start state and one final state configured.
     pub(crate) fn new() -> Self {
         let nfa = Nfa::builder(false).with_state(true);
         let final_state = nfa
@@ -43,24 +44,30 @@ impl Compiler {
         Self { nfa, final_state }
     }
 
+    /// Creates a new final state and returns the `StateId` of the new state.
     pub(crate) fn new_final(&mut self) -> StateId {
         self.final_state = self.nfa.add_state(true);
         self.final_state
     }
 
+    /// Compiles the regex expression into the NFA.
     pub(crate) fn with_expression(mut self, expr: Ast) -> Self {
         self.expr(&expr.0, self.nfa.start_state, self.final_state);
         self
     }
 
+    /// Compiles the regex expression into the NFA.
     pub(crate) fn add_expression(&mut self, expr: Ast) {
         self.expr(&expr.0, self.nfa.start_state, self.final_state);
     }
 
+    /// Builds the currently compiled NFA and checks whether the NFA is valid (e.g. transitions
+    /// between existing states)
     pub(crate) fn compile(self) -> Nfa {
         self.nfa.build()
     }
 
+    /// Creates a new state with a quantifier transition and returns the `StateId`.
     fn insert_quantifier_state(
         &mut self,
         quantifier: QuantifierKind,
@@ -75,6 +82,7 @@ impl Compiler {
         quantifier_state
     }
 
+    /// Compiles the exression into the NFA.
     #[allow(clippy::only_used_in_recursion)]
     fn expr(&mut self, expr: &ExprKind, start: StateId, end: StateId) {
         match expr {
