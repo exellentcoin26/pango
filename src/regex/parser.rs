@@ -19,23 +19,56 @@ pub(crate) struct Parser<'a> {
 /// Whether the paring of the regex succeeded.
 pub type ParseResult<T> = core::result::Result<T, W<Vec<ParseError>>>;
 
-// TODO: Refactor error messages to be enum variants with the
-// [`std::fmt::Display`] trait.
-
 /// Information about the error occurred during parsing.
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    message: String,
+    kind: ParseErrorKind,
     pos: (usize, usize),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ParseErrorKind {
+    ExpectedLeftParan,
+    ExpectedRightParan,
+    ExpectedLeftBracket,
+    ExpectedRightBracket,
+    ExpectedSubExpression,
+    ExpectedTokenForSubExpression,
+    ExpectedMatch,
+    ExpectedMatchCharacterClassLeftBracket,
+    ExpectedCharacterGroupItem,
+    ExpectedCharacterClassCharacter,
+    ExpectedTokenForCharacterGroupItem,
+}
+
+impl std::fmt::Display for ParseErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ParseErrorKind::*;
+        write!(
+            f,
+            "{}",
+            match self {
+                ExpectedSubExpression => "expected at least one sub expression",
+                ExpectedTokenForSubExpression => "expected at least one token for a subexpression",
+                ExpectedLeftParan => "expected LEFT_PAREN",
+                ExpectedRightParan => "expected RIGTH_PAREN",
+                ExpectedMatchCharacterClassLeftBracket =>
+                    "expected MATCH, CHARACTER_CLASS or LEFT_BRACKET",
+                ExpectedLeftBracket => "expected LEFT_BRACKET",
+                ExpectedRightBracket => "expected RIGHT_BRACKET",
+                ExpectedCharacterGroupItem => "expected at least one character group item",
+                ExpectedMatch => "expected MATCH",
+                ExpectedCharacterClassCharacter => "expected CHARACTER_CLASS or CHARACTER",
+                ExpectedTokenForCharacterGroupItem =>
+                    "expected at least one token for the character group item",
+            }
+        )
+    }
 }
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "[ERROR] ({}, {}): {}",
-            self.pos.0, self.pos.1, self.message
-        )
+        writeln!(f, "[ERROR] ({}, {}): {}", self.pos.0, self.pos.1, self.kind)
     }
 }
 
@@ -105,7 +138,7 @@ impl<'a> Parser<'a> {
     fn sub_expression(&mut self) -> ParseResult<Vec<ast::ExprKind>> {
         if self.tokens.peek().is_none() {
             return Err(W(vec![ParseError {
-                message: "expected at least one sub expression".to_string(),
+                kind: ParseErrorKind::ExpectedSubExpression,
                 pos: self.get_current_token_position(),
             }]));
         }
@@ -128,7 +161,7 @@ impl<'a> Parser<'a> {
     /// Rule: `sub_expression_item ::= match | group`
     fn sub_expression_item(&mut self) -> ParseResult<ast::ExprKind> {
         let Some(Token {pos: _, kind}) = self.tokens.peek() else {
-            return Err(W(vec![ParseError {message: "expected at least one token for the subexpression".to_string(), pos: self.get_current_token_position()}]))
+            return Err(W(vec![ParseError {kind: ParseErrorKind::ExpectedTokenForSubExpression, pos: self.get_current_token_position()}]))
         };
 
         match kind {
@@ -148,7 +181,7 @@ impl<'a> Parser<'a> {
             })
         ) {
             return Err(W(vec![ParseError {
-                message: "expected LEFT_PAREN".to_string(),
+                kind: ParseErrorKind::ExpectedLeftParan,
                 pos: self.get_current_token_position(),
             }]));
         }
@@ -165,7 +198,7 @@ impl<'a> Parser<'a> {
             })
         ) {
             return Err(W(vec![ParseError {
-                message: "expected RIGTH_PAREN".to_string(),
+                kind: ParseErrorKind::ExpectedRightParan,
                 pos: self.get_current_token_position(),
             }]));
         }
@@ -227,7 +260,7 @@ impl<'a> Parser<'a> {
 
             _ => {
                 return Err(W(vec![ParseError {
-                    message: "expected MATCH, CHARACTER_CLASS or LEFT_BRACKET".to_string(),
+                    kind: ParseErrorKind::ExpectedMatchCharacterClassLeftBracket,
                     pos: self.get_current_token_position(),
                 }]));
             }
@@ -248,7 +281,7 @@ impl<'a> Parser<'a> {
             })
         ) {
             return Err(W(vec![ParseError {
-                message: "expected LEFT_BRACKET".to_string(),
+                kind: ParseErrorKind::ExpectedLeftBracket,
                 pos: self.get_current_token_position(),
             }]));
         }
@@ -269,7 +302,7 @@ impl<'a> Parser<'a> {
 
         if self.tokens.peek().is_none() {
             return Err(W(vec![ParseError {
-                message: "expected at least one character group item".to_string(),
+                kind: ParseErrorKind::ExpectedCharacterGroupItem,
                 pos: self.get_current_token_position(),
             }]));
         }
@@ -281,11 +314,23 @@ impl<'a> Parser<'a> {
                     pos: _,
                     kind: TokenKind::Operator(OperatorKind::RightBracket),
                 } => {
-                    self.tokens.next();
                     break;
                 }
                 _ => literals.push(self.character_group_item()?),
             };
+        }
+
+        match self.tokens.next() {
+            Some(Token {
+                pos: _,
+                kind: TokenKind::Operator(OperatorKind::RightBracket),
+            }) => (),
+            _ => {
+                return Err(W(vec![ParseError {
+                    kind: ParseErrorKind::ExpectedRightBracket,
+                    pos: self.get_current_token_position(),
+                }]))
+            }
         }
 
         Ok(ast::LiteralKind::Group {
@@ -319,7 +364,7 @@ impl<'a> Parser<'a> {
                             }) => ast::GroupedLiteralKind::Range(start, end),
                             _ => {
                                 return Err(W(vec![ParseError {
-                                    message: "expected MATCH".to_string(),
+                                    kind: ParseErrorKind::ExpectedMatch,
                                     pos: self.get_current_token_position(),
                                 }]));
                             }
@@ -331,7 +376,7 @@ impl<'a> Parser<'a> {
 
                 _ => {
                     return Err(W(vec![ParseError {
-                        message: "expected CHARACTER_CLASS or CHARACTER".to_string(),
+                        kind: ParseErrorKind::ExpectedCharacterClassCharacter,
                         pos,
                     }]));
                 }
@@ -340,7 +385,7 @@ impl<'a> Parser<'a> {
             Ok(grouped_literal_kind)
         } else {
             Err(W(vec![ParseError {
-                message: "expected at least one token for the character group item".to_string(),
+                kind: ParseErrorKind::ExpectedTokenForCharacterGroupItem,
                 pos: self.get_current_token_position(),
             }]))
         }
