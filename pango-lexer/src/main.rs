@@ -1,4 +1,4 @@
-use pango::Lexer;
+use pango_lexer::Lexer;
 
 #[derive(Debug, Clone, Copy)]
 enum Foo {

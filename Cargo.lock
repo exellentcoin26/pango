@@ -155,7 +155,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pango"
+name = "pango-lexer"
 version = "0.1.0"
 dependencies = [
  "proptest",
