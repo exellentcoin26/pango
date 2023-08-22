@@ -40,7 +40,10 @@ fn main() {
             Variables::Prototype,
             Vec::from([Terminals::Brackets.into()]),
         )
-        .with_rule(Variables::Body, Vec::from([Terminals::Simicolon.into()]))
+        .with_rule(
+            Variables::Body,
+            Vec::from([Terminals::Identifier.into(), Terminals::Simicolon.into()]),
+        )
         .build();
 
     println!("{:?}", grammar);
