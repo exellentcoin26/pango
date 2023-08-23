@@ -29,10 +29,10 @@ jobs:
             toolchain: ${{ matrix.rust }}
 
         - name: Basic build
-          run: cargo build --locked --verbose
+          run: cargo build --all --locked --verbose
 
         - name: Test package
-          run: cargo test --locked --verbose
+          run: cargo test --all --locked --verbose
 
     proptest:
       name: proptest
@@ -45,7 +45,7 @@ jobs:
           uses: dtolnay/rust-toolchain@stable
 
         - name: Run proptests
-          run: cargo test --release --locked proptest -- --ignored
+          run: cargo test --all --release --locked proptest -- --ignored
 
     rustfmt:
       name: rustfmt
@@ -81,7 +81,7 @@ jobs:
           uses: actions-rs/clippy-check@v1
           with:
             token: ${{ secrets.GITHUB_TOKEN }}
-            args: --all-features
+            args: --all --all-features
 
     codecov:
       name: codecov
@@ -97,10 +97,10 @@ jobs:
           uses: taiki-e/install-action@cargo-llvm-cov
 
         - name: Coverage for regular tests
-          run: cargo llvm-cov --locked --all-features --no-report --release
+          run: cargo llvm-cov --locked --all --all-features --no-report --release
 
         - name: Coverage for proptests
-          run: cargo llvm-cov --locked --all-features --no-report --release -- proptest --ignored
+          run: cargo llvm-cov --locked --all --all-features --no-report --release -- proptest --ignored
 
         - name: Report code coverage
           run: cargo llvm-cov report --release --codecov --output-path codecov.json
