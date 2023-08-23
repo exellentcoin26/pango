@@ -28,6 +28,7 @@ impl<V> From<Terminals> for Symbol<V, Terminals> {
 
 fn main() {
     let grammar = Grammar::builder()
+        .with_start_variable(Variables::Function)
         .with_rule(
             Variables::Function,
             Vec::from([
@@ -46,5 +47,5 @@ fn main() {
         )
         .build();
 
-    println!("{:?}", grammar);
+    println!("{:#?}", grammar);
 }

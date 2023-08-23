@@ -32,8 +32,18 @@ type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct ItemBody<V, T> {
     body: NonNull<Body<V, T>>,
-    bullet: usize,
+    cursor: usize,
 }
+
+impl<V, T> Clone for ItemBody<V, T> {
+    fn clone(&self) -> Self {
+        Self {
+            body: self.body,
+            cursor: self.cursor,
+        }
+    }
+}
+impl<V, T> Copy for ItemBody<V, T> {}
 
 impl<V, T> Cfsm<V, T> {
     fn builder(grammar: Grammar<V, T>) -> CfsmBuilder<V, T> {
@@ -59,7 +69,10 @@ where
         builder.set_start_state_id(start_state_id);
         let mut pending_states = VecDeque::from([State::new(
             start_state_id,
-            ItemSet::from(builder.get_grammar().get_start_variable_rules()),
+            ItemSet::from((
+                builder.get_grammar().get_start_variable_rules(),
+                builder.get_grammar(),
+            )),
             builder.get_grammar(),
         )]);
 
@@ -121,29 +134,92 @@ impl<V, T> Ord for State<V, T> {
     }
 }
 
-impl<V, T> From<(&V, &HashSet<Body<V, T>>)> for ItemSet<V, T>
+impl<V, T> ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
     T: Eq + Hash,
 {
-    fn from((head, bodies): (&V, &HashSet<Body<V, T>>)) -> Self {
-        // TODO: Calculate item closure
-        todo!("calculate item closure")
+    fn from_incomplete_item_set(
+        mut items: HashMap<V, ItemBodies<V, T>>,
+        grammar: &Grammar<V, T>,
+    ) -> Self {
+        let mut pending_bodies =
+            VecDeque::from_iter(items.values().flat_map(|bodies| bodies.iter()).copied());
+
+        while let Some(item_body) = pending_bodies.pop_front() {
+            let Some(head) = item_body.get_cursor_variable() else {
+                continue;
+            };
+
+            let Some(new_item_bodies) = grammar.get_rule_bodies(head).map(|bodies| bodies.iter().map(ItemBody::from)) else {
+                continue;
+            };
+
+            for new_item_body in new_item_bodies {
+                if items
+                    .entry(head)
+                    .or_insert_with(ItemBodies::new)
+                    .insert(new_item_body)
+                {
+                    pending_bodies.push_back(new_item_body);
+                }
+            }
+        }
+
+        Self { items }
+    }
+}
+
+impl<V, T> From<((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)> for ItemSet<V, T>
+where
+    V: Copy + Eq + Hash,
+    T: Eq + Hash,
+{
+    fn from(((head, bodies), grammar): ((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)) -> Self {
+        let items = HashMap::from([(*head, bodies.iter().map(ItemBody::from).collect())]);
+        Self::from_incomplete_item_set(items, grammar)
+    }
+}
+
+impl<V, T> ItemBody<V, T> {
+    fn get_body(&self) -> &Body<V, T> {
+        // SAFETY: The struct containing the grammar the body is from, is pinned and
+        // upholds the invariant of never being moved.
+        unsafe { self.body.as_ref() }
+    }
+}
+
+impl<V, T> ItemBody<V, T>
+where
+    V: Copy,
+{
+    fn get_cursor_variable(&self) -> Option<V> {
+        self.get_body().get(self.cursor).and_then(|s| match s {
+            Symbol::Variable(v) => Some(*v),
+            Symbol::Terminal(_) => None,
+            Symbol::Epsilon => None,
+        })
     }
 }
 
 impl<V, T> From<&Body<V, T>> for ItemBody<V, T> {
     fn from(body: &Body<V, T>) -> Self {
+        // `Symbol::Epsilon` has no meaning for the cursor, so when reading it, we
+        // immediatly skip it.
+        let cursor = body
+            .iter()
+            .take_while(|s| matches!(s, Symbol::Epsilon))
+            .count();
+
         Self {
             body: NonNull::from(body),
-            bullet: 0,
+            cursor,
         }
     }
 }
 
 struct CfsmBuilder<V, T> {
     start_state: Option<StateId>,
-    states: BTreeSet<State<V, T>>,
     cfsm: Pin<Box<Cfsm<V, T>>>,
 }
 
@@ -151,7 +227,6 @@ impl<V, T> CfsmBuilder<V, T> {
     fn new(grammar: Grammar<V, T>) -> Self {
         Self {
             start_state: None,
-            states: BTreeSet::new(),
             cfsm: Box::pin(Cfsm {
                 start_state: 0,
                 states: BTreeSet::new(),
@@ -167,17 +242,30 @@ impl<V, T> CfsmBuilder<V, T> {
 
     fn set_start_state_id(&mut self, state_id: StateId) {
         self.start_state = Some(state_id);
+        *self.get_start_state_id_mut() = state_id;
     }
 
     fn add_state(&mut self, state: State<V, T>) {
-        self.states.insert(state);
+        self.get_states_mut().insert(state);
+    }
+
+    fn get_states_mut(&mut self) -> &mut BTreeSet<State<V, T>> {
+        // SAFETY: Returning a mutable reference to the `states` field, does not move
+        // the struct, nor does moving out of the mutable reference. The
+        // `states` field does not contain referenced data, only references.
+        &mut unsafe { self.cfsm.as_mut().get_unchecked_mut() }.states
+    }
+
+    fn get_start_state_id_mut(&mut self) -> &mut StateId {
+        &mut unsafe { self.cfsm.as_mut().get_unchecked_mut() }.start_state
     }
 
     fn build(mut self) -> Pin<Box<Cfsm<V, T>>> {
-        // `Cfsm` is a self-referential struct, thus the pin implementation is used. This means
-        // that it needs to be constructed first with the grammar and then modified.
+        // `Cfsm` is a self-referential struct, thus the pin implementation is used.
+        // This means that it needs to be constructed first with the grammar and
+        // then modified.
 
-        let (state_ids, destination_ids) = self.states.iter().fold(
+        let (state_ids, destination_ids) = self.get_states_mut().iter().fold(
             (HashSet::new(), HashSet::new()),
             |(mut state_ids, mut destination_ids),
              State {
@@ -194,7 +282,8 @@ impl<V, T> CfsmBuilder<V, T> {
             panic!("one or more destination states found that do not exist");
         }
 
-        let start_state = match self.start_state {
+        // the `start_state` on the inner cfsm is already set
+        match self.start_state {
             Some(start_state) => {
                 if !state_ids.contains(&start_state) {
                     panic!("start state is not a valid state");
@@ -203,18 +292,6 @@ impl<V, T> CfsmBuilder<V, T> {
             }
             None => panic!("start state not set"),
         };
-
-        unsafe {
-            // SAFETY: modifying the `states` and `start_state` fields do not move the struct
-            // insert `states`
-            self.cfsm
-                .as_mut()
-                .get_unchecked_mut()
-                .states
-                .extend(self.states.into_iter());
-            // set `start_state`
-            self.cfsm.as_mut().get_unchecked_mut().start_state = start_state;
-        }
 
         self.cfsm
     }

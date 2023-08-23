@@ -9,6 +9,7 @@ mod grammar;
 pub enum Symbol<V, T> {
     Terminal(T),
     Variable(V),
+    Epsilon,
 }
 
 pub(crate) type Body<V, T> = Vec<Symbol<V, T>>;
