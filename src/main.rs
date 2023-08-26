@@ -49,7 +49,11 @@ fn main() {
 
     println!("{:#?}", grammar.clone());
 
-    let cfsm = Cfsm::from_grammar(grammar);
+    let cfsm0 = Cfsm::from_grammar(&grammar);
+    let cfsm1 = Cfsm::from_grammar(&grammar);
+    let cfsm2 = Cfsm::from_grammar(grammar.clone());
 
-    println!("{:#?}", cfsm);
+    println!("{:#?}", cfsm0);
+    println!("{:#?}", cfsm1);
+    println!("{:#?}", cfsm2);
 }

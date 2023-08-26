@@ -5,6 +5,7 @@ use self::{
 use crate::{Grammar, Symbol};
 
 use std::{
+    borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::Hash,
@@ -18,15 +19,21 @@ mod state;
 // TODO: Store the grammar as a `Cow`.
 
 #[derive(Debug)]
-pub struct Cfsm<V, T> {
+pub struct Cfsm<'g, V, T>
+where
+    Grammar<V, T>: Clone,
+{
     start_state: StateId,
     states: BTreeSet<State<V, T>>,
-    grammar: Grammar<V, T>,
+    grammar: Cow<'g, Grammar<V, T>>,
     _pin: PhantomPinned,
 }
 
-impl<V, T> Cfsm<V, T> {
-    fn builder(grammar: Grammar<V, T>) -> CfsmBuilder<V, T> {
+impl<'g, V, T> Cfsm<'g, V, T>
+where
+    Grammar<V, T>: Clone,
+{
+    fn builder(grammar: Cow<'g, Grammar<V, T>>) -> CfsmBuilder<'g, V, T> {
         CfsmBuilder::new(grammar)
     }
 
@@ -35,14 +42,15 @@ impl<V, T> Cfsm<V, T> {
     }
 }
 
-impl<V, T> Cfsm<V, T>
+impl<'g, V, T> Cfsm<'g, V, T>
 where
     V: Copy + Eq + Hash,
     T: Eq + Hash,
+    Grammar<V, T>: Clone,
     Symbol<V, T>: Clone,
 {
-    pub fn from_grammar(grammar: Grammar<V, T>) -> Pin<Box<Self>> {
-        let mut builder = Self::builder(grammar);
+    pub fn from_grammar(grammar: impl Into<Cow<'g, Grammar<V, T>>>) -> Pin<Box<Self>> {
+        let mut builder = Self::builder(grammar.into());
 
         let mut state_id_generator = StateIdGenerator::default();
 
@@ -108,13 +116,19 @@ where
     }
 }
 
-struct CfsmBuilder<V, T> {
+struct CfsmBuilder<'g, V, T>
+where
+    Grammar<V, T>: Clone,
+{
     start_state: Option<StateId>,
-    cfsm: Pin<Box<Cfsm<V, T>>>,
+    cfsm: Pin<Box<Cfsm<'g, V, T>>>,
 }
 
-impl<V, T> CfsmBuilder<V, T> {
-    fn new(grammar: Grammar<V, T>) -> Self {
+impl<'g, V, T> CfsmBuilder<'g, V, T>
+where
+    Grammar<V, T>: Clone,
+{
+    fn new(grammar: Cow<'g, Grammar<V, T>>) -> Self {
         Self {
             start_state: None,
             cfsm: Box::pin(Cfsm {
@@ -150,7 +164,7 @@ impl<V, T> CfsmBuilder<V, T> {
         &mut unsafe { self.cfsm.as_mut().get_unchecked_mut() }.start_state
     }
 
-    fn build(mut self) -> Pin<Box<Cfsm<V, T>>> {
+    fn build(mut self) -> Pin<Box<Cfsm<'g, V, T>>> {
         // `Cfsm` is a self-referential struct, thus the pin implementation is used.
         // This means that it needs to be constructed first with the grammar and
         // then modified.

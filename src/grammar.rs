@@ -1,6 +1,7 @@
 use crate::{Body, Symbol};
 
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     hash::Hash,
 };
@@ -37,6 +38,24 @@ where
         self.rules
             .get_key_value(&self.start_variable)
             .expect("start variable should have an associated rule")
+    }
+}
+
+impl<V, T> From<Grammar<V, T>> for Cow<'static, Grammar<V, T>>
+where
+    Grammar<V, T>: Clone,
+{
+    fn from(grammar: Grammar<V, T>) -> Self {
+        Cow::Owned(grammar)
+    }
+}
+
+impl<'g, V, T> From<&'g Grammar<V, T>> for Cow<'g, Grammar<V, T>>
+where
+    Grammar<V, T>: Clone,
+{
+    fn from(grammar: &'g Grammar<V, T>) -> Self {
+        Cow::Borrowed(grammar)
     }
 }
 
