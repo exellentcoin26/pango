@@ -52,10 +52,7 @@ where
 
 impl<V, T> Clone for ItemBody<V, T> {
     fn clone(&self) -> Self {
-        Self {
-            body: self.body,
-            cursor: self.cursor,
-        }
+        *self
     }
 }
 impl<V, T> Copy for ItemBody<V, T> {}
@@ -122,7 +119,10 @@ where
                 continue;
             };
 
-            let Some(new_item_bodies) = grammar.get_rule_bodies(head).map(|bodies| bodies.iter().map(ItemBody::from)) else {
+            let Some(new_item_bodies) = grammar
+                .get_rule_bodies(head)
+                .map(|bodies| bodies.iter().map(ItemBody::from))
+            else {
                 continue;
             };
 
@@ -181,8 +181,8 @@ impl<V, T> ItemBody<V, T> {
     }
 
     pub(super) fn advance(mut self) -> Self {
-        // advance the cursor by one, plus the amount of epsilon terminals (they are by definition
-        // already read)
+        // advance the cursor by one, plus the amount of epsilon terminals (they are by
+        // definition already read)
         self.cursor += 1 + self
             .get_body()
             .iter()

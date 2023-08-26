@@ -159,8 +159,11 @@ impl<'a> Parser<'a> {
 
     /// Rule: `sub_expression_item ::= match | group`
     fn sub_expression_item(&mut self) -> ParseResult<ast::ExprKind> {
-        let Some(Token {pos: _, kind}) = self.tokens.peek() else {
-            return Err(W(vec![ParseError {kind: ParseErrorKind::TokenForSubExpression, pos: self.get_current_token_position()}]))
+        let Some(Token { pos: _, kind }) = self.tokens.peek() else {
+            return Err(W(vec![ParseError {
+                kind: ParseErrorKind::TokenForSubExpression,
+                pos: self.get_current_token_position(),
+            }]));
         };
 
         match kind {

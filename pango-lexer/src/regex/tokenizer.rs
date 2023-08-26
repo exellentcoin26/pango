@@ -148,7 +148,7 @@ impl<'a> Tokenizer<'a> {
                 // Handle range quantifiers
                 let Some((_, ch)) = self.iter.next() else {
                     // the token was `{`
-                    return TokenKind::Invalid
+                    return TokenKind::Invalid;
                 };
 
                 if !ch.is_ascii_digit() {
@@ -199,7 +199,8 @@ impl<'a> Tokenizer<'a> {
                         if ch != '}' {
                             return TokenKind::Invalid;
                         } else {
-                            let (Some(min_value), Some(max_value)) = (first_value, second_value) else {
+                            let (Some(min_value), Some(max_value)) = (first_value, second_value)
+                            else {
                                 return TokenKind::Invalid;
                             };
 
