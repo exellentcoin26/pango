@@ -93,11 +93,13 @@ where
     }
 
     pub fn add_rule(&mut self, variable: V, body: Body<V, T>) -> bool {
-        assert!(
-            !body.is_empty(),
-            "body can never be empty, consider using
-            `Symbol::Epsilon` for the same semantic meaning"
-        );
+        // default empty bodies to `Symbol::Epsilon`
+        let body = if !body.is_empty() {
+            body
+        } else {
+            Body::from([Symbol::Epsilon])
+        };
+
         self.rules
             .entry(variable)
             .or_insert_with(HashSet::new)
