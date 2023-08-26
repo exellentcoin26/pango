@@ -1,5 +1,4 @@
-#![allow(unused)]
-
+pub use cfsm::Cfsm;
 pub use grammar::Grammar;
 
 mod cfsm;
@@ -13,5 +12,3 @@ pub enum Symbol<V, T> {
 }
 
 pub(crate) type Body<V, T> = Vec<Symbol<V, T>>;
-
-struct LRParser {}

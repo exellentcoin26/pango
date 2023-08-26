@@ -3,10 +3,9 @@ use crate::{Body, Symbol};
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
-    thread::panicking,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Grammar<V, T> {
     start_variable: V,
     rules: Rules<V, T>,
@@ -76,7 +75,7 @@ where
 
     pub fn add_rule(&mut self, variable: V, body: Body<V, T>) -> bool {
         assert!(
-            body.len() > 0,
+            !body.is_empty(),
             "body can never be empty, consider using
             `Symbol::Epsilon` for the same semantic meaning"
         );

@@ -1,4 +1,4 @@
-use pango::{Grammar, Symbol};
+use pango::{Cfsm, Grammar, Symbol};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Variables {
@@ -7,7 +7,7 @@ enum Variables {
     Body,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Terminals {
     Brackets,
     Identifier,
@@ -47,5 +47,9 @@ fn main() {
         )
         .build();
 
-    println!("{:#?}", grammar);
+    println!("{:#?}", grammar.clone());
+
+    let cfsm = Cfsm::from_grammar(grammar);
+
+    println!("{:#?}", cfsm);
 }
