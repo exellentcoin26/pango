@@ -7,55 +7,59 @@ use std::{
     ptr::NonNull,
 };
 
-#[derive(Debug)]
-pub(super) struct ItemSet<V, T> {
-    items: HashMap<V, ItemBodies<V, T>>,
-}
-
-impl<V, T> PartialEq for ItemSet<V, T>
-where
-    V: Eq + Hash,
-    T: Eq + Hash,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.items == other.items
-    }
-}
-impl<V, T> Eq for ItemSet<V, T>
-where
-    V: Eq + Hash,
-    T: Eq + Hash,
-{
-}
-
 pub(super) type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
 
-#[derive(PartialEq, Eq, Hash)]
 pub(super) struct ItemBody<V, T> {
     body: NonNull<Body<V, T>>,
     cursor: usize,
 }
 
-impl<V, T> Debug for ItemBody<V, T>
-where
-    V: Debug,
-    T: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ItemBody")
-            // SAFETY: The grammar this body points to should be pinned.
-            .field("body", unsafe { self.body.as_ref() })
-            .field("cursor", &self.cursor)
-            .finish()
-    }
+#[derive(Debug)]
+pub(super) struct ItemSet<V, T> {
+    items: HashMap<V, ItemBodies<V, T>>,
 }
 
-impl<V, T> Clone for ItemBody<V, T> {
-    fn clone(&self) -> Self {
-        *self
+impl<V, T> ItemBody<V, T> {
+    pub(super) fn get_body(&self) -> &Body<V, T> {
+        // SAFETY: The struct containing the grammar the body is from, is pinned and
+        // upholds the invariant of never being moved.
+        unsafe { self.body.as_ref() }
+    }
+
+    pub(super) fn get_cursor_symbol(&self) -> Option<&Symbol<V, T>> {
+        self.get_body().get(self.cursor)
+    }
+
+    pub(super) fn get_cursor_variable(&self) -> Option<&V> {
+        self.get_cursor_symbol().and_then(|s| match s {
+            Symbol::Variable(v) => Some(v),
+            Symbol::Terminal(_) => None,
+            Symbol::Epsilon => unreachable!("cursor should never be on an epsilon"),
+        })
+    }
+
+    pub(super) fn get_cursor_terminal(&self) -> Option<&T> {
+        self.get_cursor_symbol().and_then(|s| match s {
+            Symbol::Terminal(t) => Some(t),
+            Symbol::Variable(_) => None,
+            Symbol::Epsilon => unreachable!("cursor should never be on an epsilon"),
+        })
+    }
+
+    pub(super) fn advance(mut self) -> Self {
+        // advance the cursor by one, plus the amount of epsilon terminals (they are by
+        // definition already read)
+        self.cursor += 1 + self
+            .get_body()
+            .iter()
+            .skip(self.cursor + 1)
+            .take_while(|s| matches!(s, Symbol::Epsilon))
+            .count();
+        self.cursor = self.cursor.min(self.get_body().len());
+
+        self
     }
 }
-impl<V, T> Copy for ItemBody<V, T> {}
 
 impl<V, T> ItemSet<V, T>
 where
@@ -115,7 +119,7 @@ where
             VecDeque::from_iter(items.values().flat_map(|bodies| bodies.iter()).copied());
 
         while let Some(item_body) = pending_bodies.pop_front() {
-            let Some(head) = item_body.get_cursor_variable() else {
+            let Some(head) = item_body.get_cursor_variable().copied() else {
                 continue;
             };
 
@@ -141,6 +145,80 @@ where
     }
 }
 
+impl<V, T> Clone for ItemBody<V, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<V, T> Copy for ItemBody<V, T> {}
+
+impl<V, T> From<&Body<V, T>> for ItemBody<V, T> {
+    fn from(body: &Body<V, T>) -> Self {
+        // `Symbol::Epsilon` has no meaning for the cursor, so when reading it, we
+        // immediatly skip it.
+        let cursor = body
+            .iter()
+            .take_while(|s| matches!(s, Symbol::Epsilon))
+            .count();
+
+        Self {
+            body: NonNull::from(body),
+            cursor,
+        }
+    }
+}
+
+impl<V, T> Debug for ItemBody<V, T>
+where
+    V: Debug,
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ItemBody")
+            // SAFETY: The grammar this body points to should be pinned.
+            .field("body", unsafe { self.body.as_ref() })
+            .field("cursor", &self.cursor)
+            .finish()
+    }
+}
+
+impl<V, T> PartialEq for ItemSet<V, T>
+where
+    V: Eq + Hash,
+    T: Eq + Hash,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.items == other.items
+    }
+}
+impl<V, T> Eq for ItemSet<V, T>
+where
+    V: Eq + Hash,
+    T: Eq + Hash,
+{
+}
+
+impl<V, T> PartialEq for ItemBody<V, T>
+where
+    Body<V, T>: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.get_body() == other.get_body() && self.cursor == other.cursor
+    }
+}
+impl<V, T> Eq for ItemBody<V, T> where Body<V, T>: Eq {}
+
+impl<V, T> Hash for ItemBody<V, T>
+where
+    Symbol<V, T>: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // hash the body instead of the pointer to the body
+        self.get_body().hash(state);
+        self.cursor.hash(state);
+    }
+}
+
 impl<V, T> From<((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)> for ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
@@ -162,63 +240,135 @@ where
     }
 }
 
-impl<V, T> ItemBody<V, T> {
-    pub(super) fn get_body(&self) -> &Body<V, T> {
-        // SAFETY: The struct containing the grammar the body is from, is pinned and
-        // upholds the invariant of never being moved.
-        unsafe { self.body.as_ref() }
+#[cfg(test)]
+mod tests {
+    use super::{ItemBody, ItemSet};
+    use crate::{Grammar, Symbol};
+
+    use std::collections::{HashMap, HashSet};
+
+    #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+    #[allow(unused)]
+    enum Variable {
+        Function,
+        Body,
+        Prototype,
+        Statement,
     }
 
-    pub(super) fn get_cursor_terminal(&self) -> Option<&T> {
-        self.get_cursor_symbol().and_then(|s| match s {
-            Symbol::Terminal(t) => Some(t),
-            _ => None,
-        })
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+    #[allow(unused)]
+    enum Terminal {
+        Bracket,
+        Identifier(String),
+        Semi,
     }
 
-    pub(super) fn get_cursor_symbol(&self) -> Option<&Symbol<V, T>> {
-        self.get_body().get(self.cursor)
-    }
-
-    pub(super) fn advance(mut self) -> Self {
-        // advance the cursor by one, plus the amount of epsilon terminals (they are by
-        // definition already read)
-        self.cursor += 1 + self
-            .get_body()
-            .iter()
-            .skip(self.cursor + 1)
-            .take_while(|s| matches!(s, Symbol::Epsilon))
-            .count();
-        self.cursor = self.cursor.max(self.get_body().len());
-
-        self
-    }
-}
-
-impl<V, T> ItemBody<V, T>
-where
-    V: Copy,
-{
-    fn get_cursor_variable(&self) -> Option<V> {
-        self.get_cursor_symbol().and_then(|s| match s {
-            Symbol::Variable(v) => Some(*v),
-            _ => None,
-        })
-    }
-}
-
-impl<V, T> From<&Body<V, T>> for ItemBody<V, T> {
-    fn from(body: &Body<V, T>) -> Self {
-        // `Symbol::Epsilon` has no meaning for the cursor, so when reading it, we
-        // immediatly skip it.
-        let cursor = body
-            .iter()
-            .take_while(|s| matches!(s, Symbol::Epsilon))
-            .count();
-
-        Self {
-            body: NonNull::from(body),
-            cursor,
+    impl<T> From<Variable> for Symbol<Variable, T> {
+        fn from(v: Variable) -> Self {
+            Symbol::Variable(v)
         }
+    }
+
+    impl<V> From<Terminal> for Symbol<V, Terminal> {
+        fn from(t: Terminal) -> Self {
+            Symbol::Terminal(t)
+        }
+    }
+
+    #[test]
+    fn item_body_epsilon() {
+        let body = vec![Symbol::<Variable, Terminal>::Epsilon];
+        let item_body = ItemBody::from(&body);
+
+        assert_eq!(item_body.cursor, 1);
+        assert_eq!(item_body.get_cursor_symbol(), None);
+    }
+
+    #[test]
+    fn item_body_epsilon_advance() {
+        let body = vec![
+            Symbol::Variable(Variable::Function),
+            Symbol::Epsilon,
+            Symbol::Epsilon,
+            Symbol::Epsilon,
+            Symbol::Terminal(Terminal::Semi),
+        ];
+        let item_body = ItemBody::from(&body);
+
+        assert_eq!(item_body.cursor, 0);
+        assert_eq!(
+            item_body.get_cursor_symbol(),
+            Some(&Symbol::Variable(Variable::Function))
+        );
+        assert_eq!(item_body.get_cursor_variable(), Some(&Variable::Function));
+
+        let item_body = item_body.advance();
+        assert_eq!(
+            item_body.get_cursor_symbol(),
+            Some(&Symbol::Terminal(Terminal::Semi))
+        );
+        assert_eq!(item_body.get_cursor_terminal(), Some(&Terminal::Semi));
+        assert_eq!(item_body.cursor, 4);
+    }
+
+    #[test]
+    fn item_set_from_incomplete_map() {
+        let function_body = vec![Variable::Prototype.into(), Variable::Body.into()];
+        let prototype_bodies = (
+            vec![Terminal::Identifier(String::new()).into()],
+            vec![Variable::Statement.into(), Terminal::Semi.into()],
+        );
+        let statement_body = vec![Terminal::Identifier(String::new()).into()];
+        let body_bodies = (
+            vec![
+                Terminal::Bracket.into(),
+                Variable::Function.into(),
+                Terminal::Bracket.into(),
+            ],
+            vec![
+                Terminal::Bracket.into(),
+                Terminal::Identifier(String::new()).into(),
+                Terminal::Semi.into(),
+                Terminal::Bracket.into(),
+            ],
+        );
+
+        let grammar = Grammar::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(Variable::Function, function_body.clone())
+            .with_rules(
+                Variable::Prototype,
+                [prototype_bodies.0.clone(), prototype_bodies.1.clone()],
+            )
+            .with_rule(Variable::Statement, statement_body.clone())
+            .with_rules(
+                Variable::Body,
+                [body_bodies.0.clone(), body_bodies.1.clone()],
+            )
+            .build();
+
+        let item_set = ItemSet::from((grammar.get_start_variable_rules(), &grammar));
+
+        assert_eq!(
+            item_set.items,
+            HashMap::from([
+                (
+                    Variable::Function,
+                    HashSet::from([ItemBody::from(&function_body)])
+                ),
+                (
+                    Variable::Prototype,
+                    HashSet::from([
+                        ItemBody::from(&prototype_bodies.0),
+                        ItemBody::from(&prototype_bodies.1)
+                    ])
+                ),
+                (
+                    Variable::Statement,
+                    HashSet::from([ItemBody::from(&statement_body)])
+                )
+            ])
+        )
     }
 }

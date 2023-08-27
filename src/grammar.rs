@@ -78,7 +78,7 @@ impl<V, T> GrammarBuilder<V, T> {
 impl<V, T> GrammarBuilder<V, T>
 where
     V: Eq + Hash,
-    T: Eq + Hash,
+    Symbol<V, T>: Eq + Hash,
 {
     pub fn with_start_variable(mut self, variable: V) -> Self {
         self.set_start_variable(variable);
@@ -107,6 +107,29 @@ where
             .entry(variable)
             .or_insert_with(HashSet::new)
             .insert(body)
+    }
+}
+
+impl<V, T> GrammarBuilder<V, T>
+where
+    V: Copy + Eq + Hash,
+    Symbol<V, T>: Eq + Hash,
+{
+    pub fn with_rules<B>(mut self, variable: V, bodies: impl IntoIterator<Item = B>) -> Self
+    where
+        B: Into<Body<V, T>>,
+    {
+        self.add_rules(variable, bodies);
+        self
+    }
+
+    pub fn add_rules<B>(&mut self, variable: V, bodies: impl IntoIterator<Item = B>)
+    where
+        B: Into<Body<V, T>>,
+    {
+        bodies.into_iter().for_each(|b| {
+            let _ = self.add_rule(variable, b.into());
+        });
     }
 }
 
@@ -155,7 +178,7 @@ mod tests {
     use super::Grammar;
     use crate::Symbol;
 
-    #[derive(Debug, Hash, PartialEq, Eq)]
+    #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
     enum Variable {
         Function,
         Body,
@@ -199,6 +222,32 @@ mod tests {
                 [
                     Terminal::Identifier(String::new()).into(),
                     Terminal::Semi.into(),
+                ],
+            )
+            .build();
+    }
+
+    #[test]
+    fn multi_rule() {
+        Grammar::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(
+                Variable::Function,
+                [
+                    Variable::Prototype.into(),
+                    Terminal::Bracket.into(),
+                    Variable::Body.into(),
+                ],
+            )
+            .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
+            .with_rules(
+                Variable::Body,
+                [
+                    [
+                        Terminal::Identifier(String::new()).into(),
+                        Terminal::Semi.into(),
+                    ],
+                    [Terminal::Bracket.into(), Terminal::Bracket.into()],
                 ],
             )
             .build();
