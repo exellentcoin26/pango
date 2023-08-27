@@ -155,14 +155,14 @@ mod tests {
     use super::Grammar;
     use crate::Symbol;
 
-    #[derive(Hash, PartialEq, Eq)]
+    #[derive(Debug, Hash, PartialEq, Eq)]
     enum Variable {
         Function,
         Body,
         Prototype,
     }
 
-    #[derive(Hash, PartialEq, Eq)]
+    #[derive(Debug, Hash, PartialEq, Eq)]
     enum Terminal {
         Bracket,
         Identifier(String),
@@ -202,6 +202,19 @@ mod tests {
                 ],
             )
             .build();
+    }
+
+    #[test]
+    fn empty_body() {
+        let grammar = Grammar::<Variable, Terminal>::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(Variable::Function, [])
+            .build();
+
+        assert_eq!(
+            grammar.rules[&Variable::Function].iter().next().unwrap(),
+            &vec![Symbol::Epsilon]
+        )
     }
 
     #[test]
