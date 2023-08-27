@@ -6,6 +6,8 @@ use std::{
     hash::Hash,
 };
 
+// TODO: Convert runtime errors with start variable to type-state builder pattern.
+
 #[derive(Debug, Clone)]
 pub struct Grammar<V, T> {
     start_variable: V,
@@ -83,7 +85,7 @@ where
         self
     }
 
-    pub fn with_rule(mut self, variable: V, body: Body<V, T>) -> Self {
+    pub fn with_rule(mut self, variable: V, body: impl Into<Body<V, T>>) -> Self {
         self.add_rule(variable, body);
         self
     }
@@ -92,7 +94,8 @@ where
         self.start_variable = Some(variable);
     }
 
-    pub fn add_rule(&mut self, variable: V, body: Body<V, T>) -> bool {
+    pub fn add_rule(&mut self, variable: V, body: impl Into<Body<V, T>>) -> bool {
+        let body = body.into();
         // default empty bodies to `Symbol::Epsilon`
         let body = if !body.is_empty() {
             body
@@ -131,23 +134,108 @@ where
             )
         }
 
-        if !variables.is_subset(&heads) {
-            panic!("all variables should have a rule associated with them");
-        }
+        let start_variable = self.start_variable.expect("start variable not set");
 
-        let start_variable = match self.start_variable {
-            Some(start_variable) => {
-                if !heads.contains(&start_variable) {
-                    panic!("start variable does not have an associated rule");
-                }
-                start_variable
-            }
-            None => panic!("start variable not set"),
-        };
+        variables.insert(&start_variable);
+
+        assert!(
+            variables.is_subset(&heads),
+            "all variables should have a rule associated with them",
+        );
 
         Grammar {
             start_variable,
             rules: self.rules,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Grammar;
+    use crate::Symbol;
+
+    #[derive(Hash, PartialEq, Eq)]
+    enum Variable {
+        Function,
+        Body,
+        Prototype,
+    }
+
+    #[derive(Hash, PartialEq, Eq)]
+    enum Terminal {
+        Bracket,
+        Identifier(String),
+        Semi,
+    }
+
+    impl<T> From<Variable> for Symbol<Variable, T> {
+        fn from(v: Variable) -> Self {
+            Symbol::Variable(v)
+        }
+    }
+
+    impl<V> From<Terminal> for Symbol<V, Terminal> {
+        fn from(t: Terminal) -> Self {
+            Symbol::Terminal(t)
+        }
+    }
+
+    #[test]
+    fn grammar() {
+        Grammar::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(
+                Variable::Function,
+                [
+                    Variable::Prototype.into(),
+                    Terminal::Bracket.into(),
+                    Variable::Body.into(),
+                ],
+            )
+            .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
+            .with_rule(
+                Variable::Body,
+                [
+                    Terminal::Identifier(String::new()).into(),
+                    Terminal::Semi.into(),
+                ],
+            )
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "start variable not set")]
+    fn no_start_variable() {
+        Grammar::builder()
+            .with_rule(
+                Variable::Function,
+                [
+                    Terminal::Bracket.into(),
+                    Terminal::Identifier(String::new()).into(),
+                    Terminal::Semi.into(),
+                ],
+            )
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "variables should have a rule associated")]
+    fn variable_with_no_rule() {
+        Grammar::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(
+                Variable::Function,
+                [Variable::Body.into(), Terminal::Semi.into()],
+            )
+            .build();
+    }
+
+    #[test]
+    #[should_panic(expected = "variables should have a rule associated")]
+    fn start_variable_without_rule() {
+        Grammar::<Variable, Terminal>::builder()
+            .with_start_variable(Variable::Function)
+            .build();
     }
 }

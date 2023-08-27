@@ -11,7 +11,7 @@ enum Variables {
 enum Terminals {
     Brackets,
     Identifier,
-    Simicolon,
+    Semicolon,
 }
 
 impl<T> From<Variables> for Symbol<Variables, T> {
@@ -43,11 +43,11 @@ fn main() {
         )
         .with_rule(
             Variables::Body,
-            Vec::from([Terminals::Identifier.into(), Terminals::Simicolon.into()]),
+            Vec::from([Terminals::Identifier.into(), Terminals::Semicolon.into()]),
         )
         .build();
 
-    println!("{:#?}", grammar.clone());
+    println!("{:#?}", grammar);
 
     let cfsm0 = Cfsm::from_grammar(&grammar);
     let cfsm1 = Cfsm::from_grammar(&grammar);
