@@ -6,13 +6,21 @@ coverage:
   status:
     # ref: https://docs.codecov.com/docs/commit-status
     changes: false
-    default_rules:
-      flag_coverage_not_uploaded_behavior: include
     patch: true
     project:
+      # entire project
       default:
+        target: auto
         # Avoid false negatives
         threshold: 1%
+      # measure crate separately
+      pango-lexer:
+        target: auto
+        paths: 
+          - "pango-lexer/"
+
+    default_rules:
+      flag_coverage_not_uploaded_behavior: include
 
 github_checks:
   annotations: true
