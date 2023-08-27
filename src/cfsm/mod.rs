@@ -179,19 +179,22 @@ where
             },
         );
 
-        if !destination_ids.is_subset(&state_ids) {
-            panic!("one or more destination states found that do not exist");
-        }
+        assert!(
+            destination_ids.is_subset(&state_ids),
+            "one or more destination states found that do not exist",
+        );
 
         // the `start_state` on the inner cfsm is already set
         match self.start_state {
             Some(start_state) => {
-                if !state_ids.contains(&start_state) {
-                    panic!("start state is not a valid state");
-                }
+                assert!(
+                    state_ids.contains(&start_state),
+                    "start state is not a valid state"
+                );
+
                 start_state
             }
-            None => panic!("start state not set"),
+            None => unreachable!("start state not set"),
         };
 
         self.cfsm
