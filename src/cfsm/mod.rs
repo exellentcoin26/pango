@@ -16,8 +16,6 @@ use std::{
 mod item;
 mod state;
 
-// TODO: Store the grammar as a `Cow`.
-
 #[derive(Debug)]
 pub struct Cfsm<'g, V, T>
 where
@@ -45,9 +43,8 @@ where
 impl<'g, V, T> Cfsm<'g, V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    Symbol<V, T>: Clone + Eq + Hash,
     Grammar<V, T>: Clone,
-    Symbol<V, T>: Clone,
 {
     pub fn from_grammar(grammar: impl Into<Cow<'g, Grammar<V, T>>>) -> Pin<Box<Self>> {
         let mut builder = Self::builder(grammar.into());
@@ -198,5 +195,79 @@ where
         };
 
         self.cfsm
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cfsm;
+    use crate::{Grammar, Symbol};
+
+    #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+    enum Variable {
+        Function,
+        Body,
+        Prototype,
+        Statement,
+    }
+
+    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+    enum Terminal {
+        Bracket,
+        Identifier(String),
+        Semi,
+    }
+
+    impl<T> From<Variable> for Symbol<Variable, T> {
+        fn from(v: Variable) -> Self {
+            Symbol::Variable(v)
+        }
+    }
+
+    impl<V> From<Terminal> for Symbol<V, Terminal> {
+        fn from(t: Terminal) -> Self {
+            Symbol::Terminal(t)
+        }
+    }
+
+    #[test]
+    fn cfsm() {
+        let grammar = Grammar::builder()
+            .with_start_variable(Variable::Function)
+            .with_rule(
+                Variable::Function,
+                [Variable::Prototype.into(), Variable::Body.into()],
+            )
+            .with_rules(
+                Variable::Prototype,
+                [
+                    vec![Terminal::Identifier(String::new()).into()],
+                    vec![Variable::Statement.into(), Terminal::Semi.into()],
+                ],
+            )
+            .with_rule(
+                Variable::Statement,
+                [Terminal::Identifier(String::new()).into()],
+            )
+            .with_rules(
+                Variable::Body,
+                [
+                    vec![
+                        Terminal::Bracket.into(),
+                        Variable::Function.into(),
+                        Terminal::Bracket.into(),
+                    ],
+                    vec![
+                        Terminal::Bracket.into(),
+                        Terminal::Identifier(String::new()).into(),
+                        Terminal::Semi.into(),
+                        Terminal::Bracket.into(),
+                    ],
+                ],
+            )
+            .build();
+
+        Cfsm::from_grammar(grammar.clone());
+        Cfsm::from_grammar(&grammar);
     }
 }

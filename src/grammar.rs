@@ -34,7 +34,7 @@ where
 impl<V, T> Grammar<V, T>
 where
     V: Eq + Hash,
-    T: Eq + Hash,
+    Symbol<V, T>: Eq + Hash,
 {
     pub(super) fn get_start_variable_rules(&self) -> (&V, &HashSet<Body<V, T>>) {
         self.rules

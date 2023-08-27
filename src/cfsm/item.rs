@@ -65,7 +65,6 @@ impl<V, T> ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
-    ItemBody<V, T>: Eq + Hash,
 {
     pub(super) fn iter_by_cursor_symbol(
         &self,
@@ -109,7 +108,7 @@ where
 impl<V, T> ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    ItemBody<V, T>: Eq + Hash,
 {
     pub(super) fn from_incomplete_map(
         mut items: HashMap<V, ItemBodies<V, T>>,
@@ -123,12 +122,10 @@ where
                 continue;
             };
 
-            let Some(new_item_bodies) = grammar
+            let new_item_bodies = grammar
                 .get_rule_bodies(head)
                 .map(|bodies| bodies.iter().map(ItemBody::from))
-            else {
-                continue;
-            };
+                .expect("variable should have an associated rule");
 
             for new_item_body in new_item_bodies {
                 if items
@@ -170,8 +167,7 @@ impl<V, T> From<&Body<V, T>> for ItemBody<V, T> {
 
 impl<V, T> Debug for ItemBody<V, T>
 where
-    V: Debug,
-    T: Debug,
+    Body<V, T>: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ItemBody")
@@ -182,10 +178,12 @@ where
     }
 }
 
+// Implementing these manually prevents trait bounds on the struct, which are bubbled up to all
+// types using the struct (e.g., `State`).
 impl<V, T> PartialEq for ItemSet<V, T>
 where
     V: Eq + Hash,
-    T: Eq + Hash,
+    ItemBody<V, T>: Eq + Hash,
 {
     fn eq(&self, other: &Self) -> bool {
         self.items == other.items
@@ -194,7 +192,7 @@ where
 impl<V, T> Eq for ItemSet<V, T>
 where
     V: Eq + Hash,
-    T: Eq + Hash,
+    ItemBody<V, T>: Eq + Hash,
 {
 }
 
@@ -210,7 +208,7 @@ impl<V, T> Eq for ItemBody<V, T> where Body<V, T>: Eq {}
 
 impl<V, T> Hash for ItemBody<V, T>
 where
-    Symbol<V, T>: Hash,
+    Body<V, T>: Hash,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // hash the body instead of the pointer to the body
@@ -222,7 +220,7 @@ where
 impl<V, T> From<((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)> for ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    ItemBody<V, T>: Eq + Hash,
 {
     fn from(((head, bodies), grammar): ((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)) -> Self {
         let items = HashMap::from([(*head, bodies.iter().map(ItemBody::from).collect())]);
@@ -233,7 +231,7 @@ where
 impl<V, T> From<(HashMap<V, ItemBodies<V, T>>, &Grammar<V, T>)> for ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    ItemBody<V, T>: Eq + Hash,
 {
     fn from((items, grammar): (HashMap<V, ItemBodies<V, T>>, &Grammar<V, T>)) -> Self {
         Self::from_incomplete_map(items, grammar)
@@ -248,7 +246,6 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-    #[allow(unused)]
     enum Variable {
         Function,
         Body,
@@ -257,7 +254,6 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-    #[allow(unused)]
     enum Terminal {
         Bracket,
         Identifier(String),
@@ -302,6 +298,7 @@ mod tests {
             Some(&Symbol::Variable(Variable::Function))
         );
         assert_eq!(item_body.get_cursor_variable(), Some(&Variable::Function));
+        assert_eq!(item_body.get_cursor_terminal(), None);
 
         let item_body = item_body.advance();
         assert_eq!(
@@ -309,6 +306,7 @@ mod tests {
             Some(&Symbol::Terminal(Terminal::Semi))
         );
         assert_eq!(item_body.get_cursor_terminal(), Some(&Terminal::Semi));
+        assert_eq!(item_body.get_cursor_variable(), None);
         assert_eq!(item_body.cursor, 4);
     }
 
