@@ -18,6 +18,10 @@ coverage:
         target: auto
         paths: 
           - "pango-lexer/"
+      pango:
+        target: auto
+        paths:
+          - "src/"
 
     default_rules:
       flag_coverage_not_uploaded_behavior: include
