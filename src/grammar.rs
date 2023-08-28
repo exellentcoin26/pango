@@ -6,17 +6,23 @@ use std::{
     hash::Hash,
 };
 
-// TODO: Convert runtime errors with start variable to type-state builder pattern.
+// TODO: Convert runtime errors with start variable to type-state builder
+// pattern.
 
+/// Represents a [parsing expression grammar](https://en.wikipedia.org/wiki/Parsing_expression_grammar).
 #[derive(Debug, Clone)]
 pub struct Grammar<V, T> {
+    /// Start variable of the [`Grammar`].
     start_variable: V,
+    /// Mapping of `Variables` to a set of [`Bodies`](Body).
     rules: Rules<V, T>,
 }
 
+/// Map of `Variables` to a set of [`Bodies`](Body).
 type Rules<V, T> = HashMap<V, HashSet<Body<V, T>>>;
 
 impl<V, T> Grammar<V, T> {
+    /// Creates a new `GrammarBuilder`.
     pub fn builder() -> GrammarBuilder<V, T> {
         GrammarBuilder::new()
     }
@@ -26,6 +32,7 @@ impl<V, T> Grammar<V, T>
 where
     V: Copy + Eq + Hash,
 {
+    /// Returns a set of [`Bodies`](Body) the `Variable` maps to.
     pub(super) fn get_rule_bodies(&self, head: V) -> Option<&HashSet<Body<V, T>>> {
         self.rules.get(&head)
     }
@@ -36,6 +43,8 @@ where
     V: Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
+    /// Returns a set of [`Bodies`](Body) associated with the start variable of
+    /// the [`Grammar`].
     pub(super) fn get_start_variable_rules(&self) -> (&V, &HashSet<Body<V, T>>) {
         self.rules
             .get_key_value(&self.start_variable)
@@ -61,12 +70,17 @@ where
     }
 }
 
+/// Builder struct for the [`Grammar`].
 pub struct GrammarBuilder<V, T> {
+    /// Start variable of the [`Grammar`].
     start_variable: Option<V>,
+    /// Mapping of `Variables` to a set of [`Bodies`](Body).
     rules: Rules<V, T>,
 }
 
 impl<V, T> GrammarBuilder<V, T> {
+    /// Creates a new [`GrammarBuilder`] with no `start_variable` and no
+    /// associated [`Rules`].
     fn new() -> Self {
         Self {
             start_variable: None,
@@ -80,20 +94,24 @@ where
     V: Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
+    /// Sets the `start_variable` of the [`Grammar`].
     pub fn with_start_variable(mut self, variable: V) -> Self {
         self.set_start_variable(variable);
         self
     }
 
+    /// Adds a [`Rule`](Rules) to the [`Grammar`].
     pub fn with_rule(mut self, variable: V, body: impl Into<Body<V, T>>) -> Self {
         self.add_rule(variable, body);
         self
     }
 
+    /// Sets the `start_variable` of the [`Grammar`].
     pub fn set_start_variable(&mut self, variable: V) {
         self.start_variable = Some(variable);
     }
 
+    /// Adds a [`Rule`](Rules) to the [`Grammar`].
     pub fn add_rule(&mut self, variable: V, body: impl Into<Body<V, T>>) -> bool {
         let body = body.into();
         // default empty bodies to `Symbol::Epsilon`
@@ -115,6 +133,7 @@ where
     V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
+    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the grammar.
     pub fn with_rules<B>(mut self, variable: V, bodies: impl IntoIterator<Item = B>) -> Self
     where
         B: Into<Body<V, T>>,
@@ -123,6 +142,7 @@ where
         self
     }
 
+    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the grammar.
     pub fn add_rules<B>(&mut self, variable: V, bodies: impl IntoIterator<Item = B>)
     where
         B: Into<Body<V, T>>,
@@ -137,6 +157,8 @@ impl<V, T> GrammarBuilder<V, T>
 where
     V: Eq + Hash,
 {
+    /// Builds the [`Grammar`] and does runtime checks (used variables have at least one
+    /// associated rule, a start variable is set).
     pub fn build(self) -> Grammar<V, T> {
         // check whether all variables have a rule associated with them
         let mut variables = HashSet::new();

@@ -7,29 +7,39 @@ use std::{
     ptr::NonNull,
 };
 
+/// Set of [`ItemBody`] structs.
 pub(super) type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
 
+/// Wrapper around [`ItemBody`] containing a bullet/cursor for reading symbols.
 pub(super) struct ItemBody<V, T> {
     body: NonNull<Body<V, T>>,
     cursor: usize,
 }
 
+/// Set of [items](https://en.wikipedia.org/wiki/LR_parser#Items) in a state of the
+/// [`Cfsm`].
+///
+/// [`Cfsm`]: super::Cfsm
 #[derive(Debug)]
 pub(super) struct ItemSet<V, T> {
     items: HashMap<V, ItemBodies<V, T>>,
 }
 
 impl<V, T> ItemBody<V, T> {
+    /// Returns the [`Body`] the [`ItemBody`] references.
     pub(super) fn get_body(&self) -> &Body<V, T> {
         // SAFETY: The struct containing the grammar the body is from, is pinned and
         // upholds the invariant of never being moved.
         unsafe { self.body.as_ref() }
     }
 
+    /// Returns the [`Symbol`] the bullet/cursor is currently reading.
     pub(super) fn get_cursor_symbol(&self) -> Option<&Symbol<V, T>> {
         self.get_body().get(self.cursor)
     }
 
+    /// Returns the [`Variable`](Symbol::Variable) the bullet/cursor is
+    /// currently reading.
     pub(super) fn get_cursor_variable(&self) -> Option<&V> {
         self.get_cursor_symbol().and_then(|s| match s {
             Symbol::Variable(v) => Some(v),
@@ -38,6 +48,8 @@ impl<V, T> ItemBody<V, T> {
         })
     }
 
+    /// Returns the [`Terminal`](Symbol::Terminal) the bullet/cursor is
+    /// currently reading.
     pub(super) fn get_cursor_terminal(&self) -> Option<&T> {
         self.get_cursor_symbol().and_then(|s| match s {
             Symbol::Terminal(t) => Some(t),
@@ -46,6 +58,8 @@ impl<V, T> ItemBody<V, T> {
         })
     }
 
+    /// Advances the bullet/cursor in the [`ItemBody`] by one (or more if the
+    /// next symbols are [`Epsilon`](Symbol::Epsilon)).
     pub(super) fn advance(mut self) -> Self {
         // advance the cursor by one, plus the amount of epsilon terminals (they are by
         // definition already read)
@@ -66,6 +80,8 @@ where
     V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
+    /// Groups the items in the [`ItemSet`] by the [`Symbol`] they are currently
+    /// reading, and returns an iterator over them.
     pub(super) fn iter_by_cursor_symbol(
         &self,
     ) -> impl Iterator<Item = (&Symbol<V, T>, HashMap<V, HashSet<&ItemBody<V, T>>>)> {
@@ -98,6 +114,8 @@ impl<V, T> ItemSet<V, T>
 where
     V: Copy,
 {
+    /// Returns an iterator over the [`Variable`](Symbol::Variable)-[`ItemBody`]
+    /// pairs in the [`ItemSet`].
     pub(super) fn iter(&self) -> impl Iterator<Item = (V, ItemBody<V, T>)> + '_ {
         self.items
             .iter()
@@ -110,6 +128,8 @@ where
     V: Copy + Eq + Hash,
     ItemBody<V, T>: Eq + Hash,
 {
+    /// Constructs the closure of the incomplete [`ItemSet`] based on the
+    /// [`Grammar`].
     pub(super) fn from_incomplete_map(
         mut items: HashMap<V, ItemBodies<V, T>>,
         grammar: &Grammar<V, T>,
@@ -178,8 +198,8 @@ where
     }
 }
 
-// Implementing these manually prevents trait bounds on the struct, which are bubbled up to all
-// types using the struct (e.g., `State`).
+// Implementing these manually prevents trait bounds on the struct, which are
+// bubbled up to all types using the struct (e.g., `State`).
 impl<V, T> PartialEq for ItemSet<V, T>
 where
     V: Eq + Hash,

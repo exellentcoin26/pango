@@ -16,13 +16,19 @@ use std::{
 mod item;
 mod state;
 
+/// [Canonical finite-state machine](https://en.wikipedia.org/wiki/LR_parser#Finding_the_reachable_item_sets_and_the_transitions_between_them)
+/// representing all valid prefixes of the [LR parser](https://en.wikipedia.org/wiki/LR_parser)
+/// during an accepting run.
 #[derive(Debug)]
 pub struct Cfsm<'g, V, T>
 where
     Grammar<V, T>: Clone,
 {
+    /// Start state id of the canonical finite-state machine.
     start_state: StateId,
+    /// Set of [`State`]s in the finite-state machine.
     states: BTreeSet<State<V, T>>,
+    /// [`Grammar`] the [`Cfsm`] is constructed from.
     grammar: Cow<'g, Grammar<V, T>>,
     _pin: PhantomPinned,
 }
@@ -31,10 +37,13 @@ impl<'g, V, T> Cfsm<'g, V, T>
 where
     Grammar<V, T>: Clone,
 {
+    /// Creates a new [`CfsmBuilder`] to help constructing a [`Cfsm`].
     fn builder(grammar: Cow<'g, Grammar<V, T>>) -> CfsmBuilder<'g, V, T> {
         CfsmBuilder::new(grammar)
     }
 
+    /// Returns a read-only reference to the [`Grammar`] internally used by the
+    /// [`Cfsm`].
     pub fn get_grammar(&self) -> &Grammar<V, T> {
         &self.grammar
     }
@@ -46,6 +55,7 @@ where
     Symbol<V, T>: Clone + Eq + Hash,
     Grammar<V, T>: Clone,
 {
+    /// Constructs a [`Cfsm`] from the given grammar.
     pub fn from_grammar(grammar: impl Into<Cow<'g, Grammar<V, T>>>) -> Pin<Box<Self>> {
         let mut builder = Self::builder(grammar.into());
 
@@ -117,7 +127,9 @@ struct CfsmBuilder<'g, V, T>
 where
     Grammar<V, T>: Clone,
 {
+    /// Start state id of the [`Cfsm`].
     start_state: Option<StateId>,
+    /// [`Cfsm`] currently being constructed.
     cfsm: Pin<Box<Cfsm<'g, V, T>>>,
 }
 
@@ -125,6 +137,8 @@ impl<'g, V, T> CfsmBuilder<'g, V, T>
 where
     Grammar<V, T>: Clone,
 {
+    /// Creates a new [`CfsmBuilder`] which already stores the grammar needed
+    /// for internal references.
     fn new(grammar: Cow<'g, Grammar<V, T>>) -> Self {
         Self {
             start_state: None,
@@ -137,19 +151,24 @@ where
         }
     }
 
+    /// Returns a read-only reference to the [`Grammar`] the [`Cfsm`] is
+    /// constructed from.
     fn get_grammar(&self) -> &Grammar<V, T> {
         &self.cfsm.grammar
     }
 
+    /// Sets the start state id of the [`Cfsm`].
     fn set_start_state_id(&mut self, state_id: StateId) {
         self.start_state = Some(state_id);
         *self.get_start_state_id_mut() = state_id;
     }
 
+    /// Adds a [`State`] to the [`Cfsm`].
     fn add_state(&mut self, state: State<V, T>) {
         self.get_states_mut().insert(state);
     }
 
+    /// Returns a mutable reference to the set of states of the [`Cfsm`].
     fn get_states_mut(&mut self) -> &mut BTreeSet<State<V, T>> {
         // SAFETY: Returning a mutable reference to the `states` field, does not move
         // the struct, nor does moving out of the mutable reference. The
@@ -157,16 +176,19 @@ where
         &mut unsafe { self.cfsm.as_mut().get_unchecked_mut() }.states
     }
 
+    /// Returns a mutable reference to the start state id of the [`Cfsm`].
     fn get_start_state_id_mut(&mut self) -> &mut StateId {
         &mut unsafe { self.cfsm.as_mut().get_unchecked_mut() }.start_state
     }
 
+    /// Builds the [`Cfsm`] and does runtime checks such as validating state
+    /// transitions and checking whether a valid start state is set.
     fn build(mut self) -> Pin<Box<Cfsm<'g, V, T>>> {
         // `Cfsm` is a self-referential struct, thus the pin implementation is used.
         // This means that it needs to be constructed first with the grammar and
         // then modified.
 
-        let (state_ids, destination_ids) = self.get_states_mut().iter().fold(
+        let (state_ids, mut destination_ids) = self.get_states_mut().iter().fold(
             (HashSet::new(), HashSet::new()),
             |(mut state_ids, mut destination_ids),
              State {
@@ -179,13 +201,7 @@ where
             },
         );
 
-        assert!(
-            destination_ids.is_subset(&state_ids),
-            "one or more destination states found that do not exist",
-        );
-
-        // the `start_state` on the inner cfsm is already set
-        match self.start_state {
+        let start_state_id = match self.start_state {
             Some(start_state) => {
                 assert!(
                     state_ids.contains(&start_state),
@@ -196,6 +212,15 @@ where
             }
             None => unreachable!("start state not set"),
         };
+
+        destination_ids.insert(start_state_id);
+
+        assert!(
+            destination_ids.is_subset(&state_ids),
+            "one or more destination states found that do not exist",
+        );
+
+        // the `start_state_id` of the inner `Cfsm` is already set
 
         self.cfsm
     }
