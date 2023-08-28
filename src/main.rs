@@ -56,4 +56,7 @@ fn main() {
     println!("{:#?}", cfsm0);
     println!("{:#?}", cfsm1);
     println!("{:#?}", cfsm2);
+
+    println!("=============================");
+    println!("{}", cfsm0.to_dot());
 }

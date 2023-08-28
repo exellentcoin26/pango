@@ -10,10 +10,10 @@ use std::{
 /// Set of [`ItemBody`] structs.
 pub(super) type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
 
-/// Wrapper around [`ItemBody`] containing a bullet/cursor for reading symbols.
+/// Wrapper around [`Body`] containing a bullet/cursor for reading symbols.
 pub(super) struct ItemBody<V, T> {
     body: NonNull<Body<V, T>>,
-    cursor: usize,
+    pub(super) cursor: usize,
 }
 
 /// Set of [items](https://en.wikipedia.org/wiki/LR_parser#Items) in a state of the

@@ -13,6 +13,7 @@ use std::{
     pin::Pin,
 };
 
+mod dot;
 mod item;
 mod state;
 
