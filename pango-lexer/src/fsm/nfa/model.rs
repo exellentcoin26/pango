@@ -211,7 +211,7 @@ impl NfaBuilder {
         self
     }
 
-    /// Creates a transition between two states using their [`StateIds`].
+    /// Creates a transition between two states using their [`StateId`]s.
     ///
     /// # Panics
     ///
@@ -228,7 +228,7 @@ impl NfaBuilder {
         id
     }
 
-    /// Creates a transition between two states using their [`StateIds`].
+    /// Creates a transition between two states using their [`StateId`]s.
     ///
     /// # Panics
     ///

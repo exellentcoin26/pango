@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
 
     /// Parses the `input` into a regex [`Ast`].
     ///
-    /// [`Ast`]: regex::Ast
+    /// [`Ast`]: super::ast::Ast
     pub(crate) fn parse(&mut self) -> ParseResult<ast::Ast> {
         if self.tokens.peek().is_none() {
             return Ok(Ast(ast::ExprKind::Empty));

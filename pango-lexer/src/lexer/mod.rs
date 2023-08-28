@@ -149,7 +149,7 @@ impl<TokenKind> Default for LexerGenerator<TokenKind> {
 }
 
 impl<TokenKind> LexerGenerator<TokenKind> {
-    /// Creates a new empty [`LexerBuilder`].
+    /// Creates a new empty [`LexerGenerator`].
     pub fn new() -> Self {
         Self::default()
     }
