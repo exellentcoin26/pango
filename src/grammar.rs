@@ -26,6 +26,35 @@ impl<V, T> Grammar<V, T> {
     pub fn builder() -> GrammarBuilder<V, T> {
         GrammarBuilder::new()
     }
+
+    pub(crate) fn iter_variables(&self) -> impl Iterator<Item = &V> {
+        self.rules.keys()
+    }
+}
+
+impl<V, T> Grammar<V, T>
+where
+    T: Eq + Hash,
+{
+    pub(crate) fn iter_terminals(&self) -> impl Iterator<Item = &T> {
+        let mut terminals = HashSet::new();
+
+        self.rules.values().for_each(|item_body_set| {
+            item_body_set
+                .iter()
+                .flat_map(|b| {
+                    b.iter().filter_map(|s| match s {
+                        Symbol::Terminal(t) => Some(t),
+                        _ => None,
+                    })
+                })
+                .for_each(|t| {
+                    terminals.insert(t);
+                });
+        });
+
+        terminals.into_iter()
+    }
 }
 
 impl<V, T> Grammar<V, T>
