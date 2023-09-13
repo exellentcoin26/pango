@@ -519,8 +519,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, hash::Hash};
-
     use super::Grammar;
     use crate::Symbol;
 
@@ -550,164 +548,262 @@ mod tests {
         }
     }
 
-    #[test]
-    fn grammar() {
-        Grammar::builder()
-            .with_start_variable(Variable::Function)
-            .with_rule(
-                Variable::Function,
-                [
-                    Variable::Prototype.into(),
-                    Terminal::Bracket.into(),
-                    Variable::Body.into(),
-                ],
-            )
-            .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
-            .with_rule(
-                Variable::Body,
-                [
-                    Terminal::Identifier(String::new()).into(),
-                    Terminal::Semi.into(),
-                ],
-            )
-            .build();
-    }
+    mod grammar_construction {
+        use super::{Grammar, Symbol, Terminal, Variable};
 
-    #[test]
-    fn multi_rule() {
-        Grammar::builder()
-            .with_start_variable(Variable::Function)
-            .with_rule(
-                Variable::Function,
-                [
-                    Variable::Prototype.into(),
-                    Terminal::Bracket.into(),
-                    Variable::Body.into(),
-                ],
-            )
-            .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
-            .with_rules(
-                Variable::Body,
-                [
+        #[test]
+        fn grammar() {
+            Grammar::builder()
+                .with_start_variable(Variable::Function)
+                .with_rule(
+                    Variable::Function,
+                    [
+                        Variable::Prototype.into(),
+                        Terminal::Bracket.into(),
+                        Variable::Body.into(),
+                    ],
+                )
+                .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
+                .with_rule(
+                    Variable::Body,
                     [
                         Terminal::Identifier(String::new()).into(),
                         Terminal::Semi.into(),
                     ],
-                    [Terminal::Bracket.into(), Terminal::Bracket.into()],
-                ],
+                )
+                .build();
+        }
+
+        #[test]
+        fn multi_rule() {
+            Grammar::builder()
+                .with_start_variable(Variable::Function)
+                .with_rule(
+                    Variable::Function,
+                    [
+                        Variable::Prototype.into(),
+                        Terminal::Bracket.into(),
+                        Variable::Body.into(),
+                    ],
+                )
+                .with_rule(Variable::Prototype, Vec::from([Terminal::Bracket.into()]))
+                .with_rules(
+                    Variable::Body,
+                    [
+                        [
+                            Terminal::Identifier(String::new()).into(),
+                            Terminal::Semi.into(),
+                        ],
+                        [Terminal::Bracket.into(), Terminal::Bracket.into()],
+                    ],
+                )
+                .build();
+        }
+
+        mod first_follow {}
+
+        #[test]
+        fn empty_body() {
+            let grammar = Grammar::<Variable, Terminal>::builder()
+                .with_start_variable(Variable::Function)
+                .with_rule(Variable::Function, [])
+                .build();
+
+            assert_eq!(
+                grammar.rules[&Variable::Function].iter().next().unwrap(),
+                &vec![Symbol::Epsilon]
             )
-            .build();
-    }
+        }
 
-    #[test]
-    fn empty_body() {
-        let grammar = Grammar::<Variable, Terminal>::builder()
-            .with_start_variable(Variable::Function)
-            .with_rule(Variable::Function, [])
-            .build();
-
-        assert_eq!(
-            grammar.rules[&Variable::Function].iter().next().unwrap(),
-            &vec![Symbol::Epsilon]
-        )
-    }
-
-    #[test]
-    #[should_panic(expected = "start variable not set")]
-    fn no_start_variable() {
-        Grammar::builder()
-            .with_rule(
-                Variable::Function,
-                [
-                    Terminal::Bracket.into(),
-                    Terminal::Identifier(String::new()).into(),
-                    Terminal::Semi.into(),
-                ],
-            )
-            .build();
-    }
-
-    #[test]
-    #[should_panic(expected = "variables should have a rule associated")]
-    fn variable_with_no_rule() {
-        Grammar::builder()
-            .with_start_variable(Variable::Function)
-            .with_rule(
-                Variable::Function,
-                [Variable::Body.into(), Terminal::Semi.into()],
-            )
-            .build();
-    }
-
-    #[test]
-    #[should_panic(expected = "variables should have a rule associated")]
-    fn start_variable_without_rule() {
-        Grammar::<Variable, Terminal>::builder()
-            .with_start_variable(Variable::Function)
-            .build();
-    }
-
-    #[test]
-    fn first() {
-        let grammar = Grammar::builder()
-            .with_start_variable(Variable::Function)
-            .with_rule(
-                Variable::Function,
-                [
-                    Variable::Prototype.into(),
-                    // Terminal::Bracket.into(),
-                    Variable::Body.into(),
-                ],
-            )
-            .with_rules(
-                Variable::Prototype,
-                [vec![Terminal::Bracket.into()], vec![]],
-            )
-            .with_rules(
-                Variable::Body,
-                [
-                    vec![
+        #[test]
+        #[should_panic(expected = "start variable not set")]
+        fn no_start_variable() {
+            Grammar::builder()
+                .with_rule(
+                    Variable::Function,
+                    [
+                        Terminal::Bracket.into(),
                         Terminal::Identifier(String::new()).into(),
                         Terminal::Semi.into(),
                     ],
-                    vec![Terminal::Semi.into()],
-                ],
-            )
-            .build();
+                )
+                .build();
+        }
 
-        assert_eq!(
-            grammar.first(Variable::Function),
-            HashSet::from([
-                &Terminal::Identifier(String::new()).into(),
-                &Terminal::Semi.into(),
-                &Terminal::Bracket.into()
-            ])
-        );
-        assert_eq!(
-            grammar.first(Variable::Body),
-            HashSet::from([
-                &Terminal::Identifier(String::new()).into(),
-                &Terminal::Semi.into()
-            ])
-        );
-        assert_eq!(
-            grammar.first(Variable::Prototype),
-            HashSet::from([&Terminal::Bracket.into(), &Symbol::Epsilon])
-        );
+        #[test]
+        #[should_panic(expected = "variables should have a rule associated")]
+        fn variable_with_no_rule() {
+            Grammar::builder()
+                .with_start_variable(Variable::Function)
+                .with_rule(
+                    Variable::Function,
+                    [Variable::Body.into(), Terminal::Semi.into()],
+                )
+                .build();
+        }
+
+        #[test]
+        #[should_panic(expected = "variables should have a rule associated")]
+        fn start_variable_without_rule() {
+            Grammar::<Variable, Terminal>::builder()
+                .with_start_variable(Variable::Function)
+                .build();
+        }
     }
 
-    #[test]
-    fn first_recursive() {
-        use Variable::*;
-        let grammar = Grammar::<_, Terminal>::builder()
-            .with_start_variable(Function)
-            .with_rule(Body, [Function.into()])
-            .with_rule(Function, [Prototype.into()])
-            .with_rules(Prototype, [vec![Body.into()], vec![]])
-            .build();
+    mod first_follow {
+        use std::collections::{HashMap, HashSet};
 
-        assert_eq!(grammar.first(Body), HashSet::from([&Symbol::Epsilon]));
-        assert_eq!(grammar.first(Function), HashSet::from([&Symbol::Epsilon]));
-        assert_eq!(grammar.first(Prototype), HashSet::from([&Symbol::Epsilon]));
+        use super::{Grammar, Symbol, Terminal, Variable};
+
+        #[test]
+        fn first() {
+            let grammar = Grammar::builder()
+                .with_start_variable(Variable::Function)
+                .with_rule(
+                    Variable::Function,
+                    [
+                        Variable::Prototype.into(),
+                        // Terminal::Bracket.into(),
+                        Variable::Body.into(),
+                    ],
+                )
+                .with_rules(
+                    Variable::Prototype,
+                    [vec![Terminal::Bracket.into()], vec![]],
+                )
+                .with_rules(
+                    Variable::Body,
+                    [
+                        vec![
+                            Terminal::Identifier(String::new()).into(),
+                            Terminal::Semi.into(),
+                        ],
+                        vec![Terminal::Semi.into()],
+                    ],
+                )
+                .build();
+
+            assert_eq!(
+                grammar.first(Variable::Function),
+                HashSet::from([
+                    &Terminal::Identifier(String::new()).into(),
+                    &Terminal::Semi.into(),
+                    &Terminal::Bracket.into()
+                ])
+            );
+            assert_eq!(
+                grammar.first(Variable::Body),
+                HashSet::from([
+                    &Terminal::Identifier(String::new()).into(),
+                    &Terminal::Semi.into()
+                ])
+            );
+            assert_eq!(
+                grammar.first(Variable::Prototype),
+                HashSet::from([&Terminal::Bracket.into(), &Symbol::Epsilon])
+            );
+        }
+
+        #[test]
+        fn first_recursive() {
+            use Variable::*;
+            let grammar = Grammar::<_, Terminal>::builder()
+                .with_start_variable(Function)
+                .with_rule(Body, [Function.into()])
+                .with_rule(Function, [Prototype.into()])
+                .with_rules(Prototype, [vec![Body.into()], vec![]])
+                .build();
+
+            assert_eq!(grammar.first(Body), HashSet::from([&Symbol::Epsilon]));
+            assert_eq!(grammar.first(Function), HashSet::from([&Symbol::Epsilon]));
+            assert_eq!(grammar.first(Prototype), HashSet::from([&Symbol::Epsilon]));
+        }
+
+        #[test]
+        fn first_recursive_self() {
+            use self::{Terminal::*, Variable::*};
+
+            let grammar = Grammar::builder()
+                .with_start_variable(Function)
+                .with_rules(
+                    Function,
+                    [
+                        vec![
+                            Function.into(),
+                            Symbol::Epsilon,
+                            Body.into(),
+                            Bracket.into(),
+                        ],
+                        vec![Prototype.into()],
+                    ],
+                )
+                .with_rule(Prototype, [Symbol::Epsilon])
+                .with_rule(Body, [Symbol::Epsilon])
+                .build();
+
+            assert_eq!(
+                grammar.first(Function),
+                HashSet::from([&Bracket.into(), &Symbol::Epsilon])
+            );
+        }
+
+        #[test]
+        fn follow() {
+            #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+            enum V {
+                S,
+                B,
+                C,
+                D,
+                E,
+                F,
+            }
+            #[allow(non_camel_case_types)]
+            #[derive(Debug, PartialEq, Eq, Hash)]
+            enum T {
+                a,
+                b,
+                c,
+                f,
+                g,
+                h,
+            }
+
+            impl<T> From<V> for Symbol<V, T> {
+                fn from(value: V) -> Self {
+                    Self::Variable(value)
+                }
+            }
+            impl<V> From<T> for Symbol<V, T> {
+                fn from(value: T) -> Self {
+                    Self::Terminal(value)
+                }
+            }
+
+            use {T::*, V::*};
+
+            let grammar = Grammar::builder()
+                .with_start_variable(S)
+                .with_rule(S, [a.into(), B.into(), D.into(), h.into()])
+                .with_rule(B, [c.into(), C.into()])
+                .with_rules(C, [vec![b.into(), C.into()], vec![]])
+                .with_rule(D, [E.into(), F.into()])
+                .with_rules(E, [vec![g.into()], vec![]])
+                .with_rules(F, [vec![f.into()], vec![]])
+                .build();
+
+            println!("{:#?}", grammar.follow_set());
+            assert_eq!(
+                grammar.follow_set(),
+                HashMap::from([
+                    (B, HashSet::from([&g.into(), &f.into(), &h.into()])),
+                    (C, HashSet::from([&g.into(), &f.into(), &h.into()])),
+                    (D, HashSet::from([&h.into()])),
+                    (E, HashSet::from([&f.into(), &h.into()])),
+                    (F, HashSet::from([&h.into()])),
+                ])
+            )
+        }
     }
 }
