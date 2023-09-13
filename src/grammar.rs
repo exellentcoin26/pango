@@ -84,8 +84,8 @@ mod body_iter {
 
 impl<V, T> Grammar<V, T>
 where
-    V: std::fmt::Debug + Copy + Eq + Hash,
-    T: std::fmt::Debug + Eq + Hash,
+    V: Copy + Eq + Hash,
+    T: Eq + Hash,
 {
     fn first(&self, variable: V) -> HashSet<&Symbol<V, T>> {
         self.first_bodies(
@@ -169,7 +169,7 @@ where
                 visited_variables.insert(variable);
             }
             for body in bodies {
-                let last_body = body.clone();
+                let mut last_body = body.clone();
                 let mut body = body.peekable();
                 while let Some(symbol) = body.next() {
                     match symbol {
@@ -257,6 +257,7 @@ where
                         }
                         _ => (),
                     }
+                    last_body.next();
                 }
             }
         }
