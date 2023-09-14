@@ -9,6 +9,8 @@ use std::{
 // TODO: Convert runtime errors with start variable to type-state builder
 // pattern.
 
+// TODO: Add first set generation (without completely reimplementing the functions).
+
 /// Represents a [parsing expression grammar](https://en.wikipedia.org/wiki/Parsing_expression_grammar).
 #[derive(Debug, Clone)]
 pub struct Grammar<V, T> {
@@ -131,6 +133,10 @@ where
         let mut dependencies = HashMap::new();
         let mut visited_variables = HashSet::new();
 
+        if let Some(variable) = variable {
+            visited_variables.insert(variable);
+        }
+
         fn extend_for_variable<'a, V, T>(
             variable: Option<V>,
             symbols: impl IntoIterator<Item = &'a Symbol<V, T>>,
@@ -165,9 +171,6 @@ where
         }
 
         while let Some((variable, bodies)) = pending_bodies.pop_front() {
-            if let Some(variable) = variable {
-                visited_variables.insert(variable);
-            }
             for body in bodies {
                 let mut last_body = body.clone();
                 let mut body = body.peekable();
@@ -210,6 +213,8 @@ where
                                         .map(|b| Box::new(b.iter()) as Box<dyn BodyIter<V, T>>)
                                         .collect(),
                                 ));
+
+                                visited_variables.insert(*v);
 
                                 break;
                             }
