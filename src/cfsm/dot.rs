@@ -49,6 +49,9 @@ where
                  id, transitions, ..
              }| {
                 transitions.iter().map(|(symbol, state)| {
+                    // SAFETY: `symbol` comes from a `Grammar` that is stored in pinned `Cfsm`.
+                    let symbol = unsafe { symbol.as_ref() };
+
                     format!(
                         "{} -> {} [label = \"{}\"]",
                         *id,

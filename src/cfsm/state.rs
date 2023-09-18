@@ -1,7 +1,7 @@
+use std::{collections::HashMap, fmt::Debug, hash::Hash, io::Write, ptr::NonNull};
+
 use super::item::ItemSet;
 use crate::Symbol;
-
-use std::collections::HashMap;
 
 /// Represents a [state](https://en.wikipedia.org/wiki/LR_parser#Finite_state_machine)
 /// in the [`Cfsm`] containing an [`ItemSet`] and transitions based on symbols
@@ -9,16 +9,18 @@ use std::collections::HashMap;
 ///
 /// [`Cfsm`]: super::Cfsm
 #[derive(Debug)]
-pub(super) struct State<V, T> {
+pub(crate) struct State<V, T> {
     /// Id of the [`State`].
-    pub(super) id: StateId,
+    pub(crate) id: StateId,
     /// Set of items this [`State`] currently represents.
-    pub(super) item_set: ItemSet<V, T>,
+    pub(crate) item_set: ItemSet<V, T>,
     /// Transitions to other [`State`]s based on symbol input.
-    pub(super) transitions: HashMap<Symbol<V, T>, StateId>,
+    pub(crate) transitions: HashMap<WSymbol<V, T>, StateId>,
 }
 
-pub(super) type StateId = usize;
+pub(crate) struct WSymbol<V, T>(NonNull<Symbol<V, T>>);
+
+pub(crate) type StateId = usize;
 
 impl<V, T> State<V, T> {
     /// Constructs a new [`State`] with the given id and [`ItemSet`].
@@ -29,12 +31,7 @@ impl<V, T> State<V, T> {
             transitions: HashMap::new(),
         }
     }
-}
 
-impl<V, T> State<V, T>
-where
-    ItemSet<V, T>: Eq,
-{
     /// Checks whether two [`State`]s have the same [`ItemSet`].
     ///
     /// This is needed because [`State`] implements [`PartialEq`] and [`Eq`]
@@ -43,7 +40,10 @@ where
     /// implemented, thus implementing the latter based on [`ItemSet`]
     /// comparison would complicate trait bounds of functions using the
     /// [`Ord`] and [`PartialOrd`] implementations of [`State`].
-    pub(super) fn has_item_set(&self, item_set: &ItemSet<V, T>) -> bool {
+    pub(super) fn has_item_set(&self, item_set: &ItemSet<V, T>) -> bool
+    where
+        ItemSet<V, T>: Eq,
+    {
         self.item_set == *item_set
     }
 }
@@ -65,6 +65,49 @@ impl<V, T> PartialOrd for State<V, T> {
 impl<V, T> Ord for State<V, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.id.cmp(&other.id)
+    }
+}
+
+impl<V, T> AsRef<Symbol<V, T>> for WSymbol<V, T> {
+    fn as_ref(&self) -> &Symbol<V, T> {
+        // SAFETY: `Symbol` comes from `Grammar` residing in a pinned `Cfsm` which is *NOT*
+        // `Unpin`.
+        unsafe { self.0.as_ref() }
+    }
+}
+
+impl<V, T> From<&Symbol<V, T>> for WSymbol<V, T> {
+    fn from(value: &Symbol<V, T>) -> Self {
+        Self(NonNull::from(value))
+    }
+}
+
+impl<V, T> Debug for WSymbol<V, T>
+where
+    Symbol<V, T>: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", &self.as_ref())
+    }
+}
+
+impl<V, T> PartialEq for WSymbol<V, T>
+where
+    Symbol<V, T>: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl<V, T> Eq for WSymbol<V, T> where Symbol<V, T>: Eq {}
+
+impl<V, T> Hash for WSymbol<V, T>
+where
+    Symbol<V, T>: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state);
     }
 }
 

@@ -11,7 +11,7 @@ use std::{
 pub(super) type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
 
 /// Wrapper around [`Body`] containing a bullet/cursor for reading symbols.
-pub(super) struct ItemBody<V, T> {
+pub(crate) struct ItemBody<V, T> {
     body: NonNull<Body<V, T>>,
     pub(super) cursor: usize,
 }
@@ -21,26 +21,26 @@ pub(super) struct ItemBody<V, T> {
 ///
 /// [`Cfsm`]: super::Cfsm
 #[derive(Debug)]
-pub(super) struct ItemSet<V, T> {
+pub(crate) struct ItemSet<V, T> {
     items: HashMap<V, ItemBodies<V, T>>,
 }
 
 impl<V, T> ItemBody<V, T> {
     /// Returns the [`Body`] the [`ItemBody`] references.
-    pub(super) fn get_body(&self) -> &Body<V, T> {
+    pub(crate) fn get_body(&self) -> &Body<V, T> {
         // SAFETY: The struct containing the grammar the body is from, is pinned and
         // upholds the invariant of never being moved.
         unsafe { self.body.as_ref() }
     }
 
     /// Returns the [`Symbol`] the bullet/cursor is currently reading.
-    pub(super) fn get_cursor_symbol(&self) -> Option<&Symbol<V, T>> {
+    pub(crate) fn get_cursor_symbol(&self) -> Option<&Symbol<V, T>> {
         self.get_body().get(self.cursor)
     }
 
     /// Returns the [`Variable`](Symbol::Variable) the bullet/cursor is
     /// currently reading.
-    pub(super) fn get_cursor_variable(&self) -> Option<&V> {
+    pub(crate) fn get_cursor_variable(&self) -> Option<&V> {
         self.get_cursor_symbol().and_then(|s| match s {
             Symbol::Variable(v) => Some(v),
             Symbol::Terminal(_) => None,
@@ -50,7 +50,7 @@ impl<V, T> ItemBody<V, T> {
 
     /// Returns the [`Terminal`](Symbol::Terminal) the bullet/cursor is
     /// currently reading.
-    pub(super) fn get_cursor_terminal(&self) -> Option<&T> {
+    pub(crate) fn get_cursor_terminal(&self) -> Option<&T> {
         self.get_cursor_symbol().and_then(|s| match s {
             Symbol::Terminal(t) => Some(t),
             Symbol::Variable(_) => None,
@@ -116,7 +116,7 @@ where
 {
     /// Returns an iterator over the [`Variable`](Symbol::Variable)-[`ItemBody`]
     /// pairs in the [`ItemSet`].
-    pub(super) fn iter(&self) -> impl Iterator<Item = (V, ItemBody<V, T>)> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (V, ItemBody<V, T>)> + '_ {
         self.items
             .iter()
             .flat_map(|(head, bodies)| std::iter::repeat(*head).zip(bodies.iter().copied()))

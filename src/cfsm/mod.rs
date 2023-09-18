@@ -1,8 +1,4 @@
-use self::{
-    item::{ItemBody, ItemSet},
-    state::{State, StateId, StateIdGenerator},
-};
-use crate::{Grammar, Symbol};
+pub(crate) use state::{State, StateId};
 
 use std::{
     borrow::Cow,
@@ -12,6 +8,12 @@ use std::{
     marker::PhantomPinned,
     pin::Pin,
 };
+
+use self::{
+    item::{ItemBody, ItemSet},
+    state::StateIdGenerator,
+};
+use crate::{Grammar, Symbol};
 
 mod dot;
 mod item;
@@ -45,15 +47,21 @@ where
 
     /// Returns a read-only reference to the [`Grammar`] internally used by the
     /// [`Cfsm`].
-    pub fn get_grammar(&self) -> &Grammar<V, T> {
-        &self.grammar
+    pub fn get_grammar(self: Pin<&Self>) -> &Grammar<V, T> {
+        &self.get_ref().grammar
+    }
+
+    /// Iterates over the states in the [`Cfsm`], guaranteeing the first state will be the start
+    /// state.
+    pub(crate) fn iter(self: Pin<&Self>) -> impl Iterator<Item = &State<V, T>> {
+        self.get_ref().states.iter()
     }
 }
 
 impl<'g, V, T> Cfsm<'g, V, T>
 where
     V: Copy + Eq + Hash,
-    Symbol<V, T>: Clone + Eq + Hash,
+    Symbol<V, T>: Eq + Hash,
     Grammar<V, T>: Clone,
 {
     /// Constructs a [`Cfsm`] from the given grammar.
@@ -114,7 +122,7 @@ where
                     }
                 };
 
-                transitions.insert(symbol.clone(), new_state_id);
+                transitions.insert(symbol.into(), new_state_id);
             }
 
             builder.add_state(state);
