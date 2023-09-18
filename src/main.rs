@@ -1,17 +1,15 @@
-use pango::{Cfsm, Grammar, Symbol};
+use pango::{Cfsm, Grammar, Slr, Symbol};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Variables {
-    Function,
-    Prototype,
-    Body,
+    Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Terminals {
-    Brackets,
-    Identifier,
-    Semicolon,
+    Mul,
+    Plus,
+    Val,
 }
 
 impl<T> From<Variables> for Symbol<Variables, T> {
@@ -27,36 +25,23 @@ impl<V> From<Terminals> for Symbol<V, Terminals> {
 }
 
 fn main() {
+    use {Terminals::*, Variables::*};
+
     let grammar = Grammar::builder()
-        .with_start_variable(Variables::Function)
-        .with_rule(
-            Variables::Function,
-            Vec::from([
-                Variables::Prototype.into(),
-                Terminals::Brackets.into(),
-                Variables::Body.into(),
-            ]),
-        )
-        .with_rule(
-            Variables::Prototype,
-            Vec::from([Terminals::Brackets.into()]),
-        )
-        .with_rule(
-            Variables::Body,
-            Vec::from([Terminals::Identifier.into(), Terminals::Semicolon.into()]),
+        .with_start_variable(Expr)
+        .with_rules(
+            Expr,
+            [
+                vec![Expr.into(), Mul.into(), Val.into()],
+                vec![Expr.into(), Plus.into(), Val.into()],
+                vec![Val.into()],
+            ],
         )
         .build();
 
     println!("{:#?}", grammar);
 
-    let cfsm0 = Cfsm::from_grammar(&grammar);
-    let cfsm1 = Cfsm::from_grammar(&grammar);
-    let cfsm2 = Cfsm::from_grammar(grammar.clone());
+    let parser = Slr::new(grammar);
 
-    println!("{:#?}", cfsm0);
-    println!("{:#?}", cfsm1);
-    println!("{:#?}", cfsm2);
-
-    println!("=============================");
-    println!("{}", cfsm0.to_dot());
+    println!("{:#?}", parser);
 }

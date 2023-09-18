@@ -1,8 +1,10 @@
 pub use cfsm::Cfsm;
 pub use grammar::Grammar;
+pub use parser::slr::Slr;
 
 mod cfsm;
 mod grammar;
+mod parser;
 
 /// Represents single character/lexeme/variable in a [body](https://en.wikipedia.org/wiki/Parsing_expression_grammar#Syntax)
 /// of a rule.
