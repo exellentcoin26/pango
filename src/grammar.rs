@@ -28,9 +28,14 @@ impl<V, T> Grammar<V, T> {
     pub fn builder() -> GrammarBuilder<V, T> {
         GrammarBuilder::new()
     }
+}
 
-    pub(crate) fn iter_variables(&self) -> impl Iterator<Item = &V> {
-        self.rules.keys()
+impl<V, T> Grammar<V, T>
+where
+    V: Copy,
+{
+    pub(crate) fn iter_variables(&self) -> impl Iterator<Item = V> + '_ {
+        self.rules.keys().copied()
     }
 }
 
@@ -323,7 +328,7 @@ where
             }
         }
 
-        // keep iterating dependencies until the sets do not change anymore
+        // keep iterating dependencies until the sets stabilize
         // follow[lhs] = follow[rhs]
         // the dependency is from rhs -> lhs (if rhs changes, lhs needs to be updated)
         let mut follow_dependencies_queue = VecDeque::from_iter(
@@ -798,7 +803,6 @@ mod tests {
                 .with_rules(F, [vec![f.into()], vec![]])
                 .build();
 
-            println!("{:#?}", grammar.follow_set());
             assert_eq!(
                 grammar.follow_set(),
                 HashMap::from([
