@@ -1,11 +1,11 @@
-use pango::{Cfsm, Grammar, Slr, Symbol};
+use pango::{Grammar, Slr, Symbol};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Variables {
     Expr,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Terminals {
     Mul,
     Plus,

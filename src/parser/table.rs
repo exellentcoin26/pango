@@ -1,27 +1,15 @@
-#![allow(unused)]
-
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    hash::Hash,
-    pin::Pin,
-    ptr::NonNull,
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, pin::Pin, ptr::NonNull};
 
 use crate::{
     cfsm::{self, Cfsm, StateId},
-    Grammar, Symbol,
+    Symbol,
 };
 
 // #[derive(Debug)]
-pub struct ParseTable<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+pub struct ParseTable<V, T> {
     action: ActionTable<V, T>,
     goto: GotoTable<V>,
-    cfsm: Pin<Box<Cfsm<'g, V, T>>>,
+    cfsm: Pin<Box<Cfsm<V, T>>>,
 }
 
 type ActionTable<V, T> = Vec<HashMap<Terminal<T>, ActionKind<V>>>;
@@ -58,10 +46,7 @@ impl<T> From<&T> for Terminal<T> {
     }
 }
 
-impl<V: Debug, T: Debug> Debug for ParseTable<'_, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+impl<V: Debug, T: Debug> Debug for ParseTable<V, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ParseTable")
             .field("action", &self.action)
@@ -71,13 +56,12 @@ where
     }
 }
 
-impl<'g, V, T> ParseTable<'g, V, T>
+impl<V, T> ParseTable<V, T>
 where
     V: Copy + Eq + Hash,
     T: Eq + Hash,
-    Grammar<V, T>: Clone,
 {
-    pub fn new_slr(cfsm_pin: Pin<Box<Cfsm<'g, V, T>>>) -> Result<Self, ()> {
+    pub fn new_slr(cfsm_pin: Pin<Box<Cfsm<V, T>>>) -> Result<Self, ()> {
         let cfsm = cfsm_pin.as_ref();
         let grammar = cfsm.get_grammar();
 
@@ -153,10 +137,9 @@ where
     }
 }
 
-impl<V, T> ParseTable<'_, V, T>
+impl<V, T> ParseTable<V, T>
 where
     T: Eq + Hash,
-    Grammar<V, T>: Clone,
 {
     fn insert_action(
         table: &mut ActionTable<V, T>,
@@ -185,10 +168,9 @@ where
     }
 }
 
-impl<V, T> ParseTable<'_, V, T>
+impl<V, T> ParseTable<V, T>
 where
     V: Eq + Hash,
-    Grammar<V, T>: Clone,
 {
     fn insert_goto(table: &mut GotoTable<V>, state: StateId, variable: V, new_state: StateId) {
         if table.len() <= state {

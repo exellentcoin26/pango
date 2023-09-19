@@ -1,13 +1,12 @@
-use super::{item::ItemBody, state::State, Cfsm, Grammar};
+use super::{item::ItemBody, state::State, Cfsm};
 use crate::Symbol;
 
 use std::fmt::{Debug, Display};
 
-impl<V, T> Cfsm<'_, V, T>
+impl<V, T> Cfsm<V, T>
 where
     V: Copy + Debug,
     T: Debug,
-    Grammar<V, T>: Clone,
 {
     /// Converts the CFSM to dot language using the [grahviz](https://graphviz.org/docs/layouts/dot/)
     /// dot language format.

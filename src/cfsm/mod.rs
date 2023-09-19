@@ -1,7 +1,6 @@
 pub(crate) use state::{State, StateId};
 
 use std::{
-    borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::Hash,
@@ -23,25 +22,19 @@ mod state;
 /// representing all valid prefixes of the [LR parser](https://en.wikipedia.org/wiki/LR_parser)
 /// during an accepting run.
 #[derive(Debug)]
-pub struct Cfsm<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+pub struct Cfsm<V, T> {
     /// Start state id of the canonical finite-state machine.
     start_state: StateId,
     /// Set of [`State`]s in the finite-state machine.
     states: BTreeSet<State<V, T>>,
     /// [`Grammar`] the [`Cfsm`] is constructed from.
-    grammar: Cow<'g, Grammar<V, T>>,
+    grammar: Grammar<V, T>,
     _pin: PhantomPinned,
 }
 
-impl<'g, V, T> Cfsm<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+impl<V, T> Cfsm<V, T> {
     /// Creates a new [`CfsmBuilder`] to help constructing a [`Cfsm`].
-    fn builder(grammar: Cow<'g, Grammar<V, T>>) -> CfsmBuilder<'g, V, T> {
+    fn builder(grammar: Grammar<V, T>) -> CfsmBuilder<V, T> {
         CfsmBuilder::new(grammar)
     }
 
@@ -58,14 +51,13 @@ where
     }
 }
 
-impl<'g, V, T> Cfsm<'g, V, T>
+impl<V, T> Cfsm<V, T>
 where
     V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
-    Grammar<V, T>: Clone,
 {
     /// Constructs a [`Cfsm`] from the given grammar.
-    pub fn from_grammar(grammar: impl Into<Cow<'g, Grammar<V, T>>>) -> Pin<Box<Self>> {
+    pub fn from_grammar(grammar: Grammar<V, T>) -> Pin<Box<Self>> {
         let mut builder = Self::builder(grammar.into());
 
         let mut state_id_generator = StateIdGenerator::default();
@@ -132,23 +124,17 @@ where
     }
 }
 
-struct CfsmBuilder<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+struct CfsmBuilder<V, T> {
     /// Start state id of the [`Cfsm`].
     start_state: Option<StateId>,
     /// [`Cfsm`] currently being constructed.
-    cfsm: Pin<Box<Cfsm<'g, V, T>>>,
+    cfsm: Pin<Box<Cfsm<V, T>>>,
 }
 
-impl<'g, V, T> CfsmBuilder<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
+impl<V, T> CfsmBuilder<V, T> {
     /// Creates a new [`CfsmBuilder`] which already stores the grammar needed
     /// for internal references.
-    fn new(grammar: Cow<'g, Grammar<V, T>>) -> Self {
+    fn new(grammar: Grammar<V, T>) -> Self {
         Self {
             start_state: None,
             cfsm: Box::pin(Cfsm {
@@ -192,7 +178,7 @@ where
 
     /// Builds the [`Cfsm`] and does runtime checks such as validating state
     /// transitions and checking whether a valid start state is set.
-    fn build(mut self) -> Pin<Box<Cfsm<'g, V, T>>> {
+    fn build(mut self) -> Pin<Box<Cfsm<V, T>>> {
         // `Cfsm` is a self-referential struct, thus the pin implementation is used.
         // This means that it needs to be constructed first with the grammar and
         // then modified.
@@ -248,7 +234,7 @@ mod tests {
         Statement,
     }
 
-    #[derive(Debug, Clone, Hash, PartialEq, Eq)]
+    #[derive(Debug, Hash, PartialEq, Eq)]
     enum Terminal {
         Bracket,
         Identifier(String),
@@ -304,7 +290,6 @@ mod tests {
             )
             .build();
 
-        Cfsm::from_grammar(grammar.clone());
-        Cfsm::from_grammar(&grammar);
+        Cfsm::from_grammar(grammar);
     }
 }

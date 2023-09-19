@@ -1,24 +1,20 @@
 use super::table::ParseTable;
 use crate::{cfsm::Cfsm, Grammar};
 
-use std::{borrow::Cow, hash::Hash};
+use std::hash::Hash;
 
 #[derive(Debug)]
-pub struct Slr<'g, V, T>
-where
-    Grammar<V, T>: Clone,
-{
-    table: ParseTable<'g, V, T>,
+pub struct Slr<V, T> {
+    table: ParseTable<V, T>,
 }
 
-impl<'g, V, T> Slr<'g, V, T>
+impl<V, T> Slr<V, T>
 where
     V: Copy + Eq + Hash,
     T: Eq + Hash,
-    Grammar<V, T>: Clone,
 {
     pub fn new(grammar: Grammar<V, T>) -> Self {
-        let cfsm = Cfsm::from_grammar(Cow::Owned(grammar));
+        let cfsm = Cfsm::from_grammar(grammar);
 
         let table = ParseTable::new_slr(cfsm).expect("grammar is not SLR");
 

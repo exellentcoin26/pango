@@ -384,24 +384,6 @@ where
     }
 }
 
-impl<V, T> From<Grammar<V, T>> for Cow<'static, Grammar<V, T>>
-where
-    Grammar<V, T>: Clone,
-{
-    fn from(grammar: Grammar<V, T>) -> Self {
-        Cow::Owned(grammar)
-    }
-}
-
-impl<'g, V, T> From<&'g Grammar<V, T>> for Cow<'g, Grammar<V, T>>
-where
-    Grammar<V, T>: Clone,
-{
-    fn from(grammar: &'g Grammar<V, T>) -> Self {
-        Cow::Borrowed(grammar)
-    }
-}
-
 /// Builder struct for the [`Grammar`].
 pub struct GrammarBuilder<V, T> {
     /// Start variable of the [`Grammar`].
