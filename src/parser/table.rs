@@ -87,7 +87,7 @@ where
                             *state_id,
                             t.into(),
                             ActionKind::Shift { dest_state },
-                        );
+                        )?;
                     }
                     Some(s @ Symbol::Variable(v)) => {
                         // body of the form `S -> x •v y`

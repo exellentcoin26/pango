@@ -58,7 +58,7 @@ where
 {
     /// Constructs a [`Cfsm`] from the given grammar.
     pub fn from_grammar(grammar: Grammar<V, T>) -> Pin<Box<Self>> {
-        let mut builder = Self::builder(grammar.into());
+        let mut builder = Self::builder(grammar);
 
         let mut state_id_generator = StateIdGenerator::default();
 

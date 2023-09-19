@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash, io::Write, ptr::NonNull};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, ptr::NonNull};
 
 use super::item::ItemSet;
 use crate::Symbol;

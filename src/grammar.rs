@@ -1,7 +1,6 @@
 use crate::{Body, Symbol};
 
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet, VecDeque},
     hash::Hash,
 };
