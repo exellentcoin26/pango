@@ -150,11 +150,11 @@ impl<TokenKind> LexerGenerator<TokenKind> {
 
     /// Adds a single token to the [`Lexer`]. The function is called when
     /// generating the token. It is not given the source representation of
-    /// the token.
+    /// the token. If you need this use [`with_token_map`] instead.
     ///
     /// # Fails
     ///
-    /// When the provided `token` is invalid regex. If you need this use [`with_token_map`] instead.
+    /// When the provided `token` is invalid regex.
     ///
     /// [`with_token_map`]: Self::with_token_map
     #[inline]
