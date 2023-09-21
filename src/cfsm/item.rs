@@ -1,11 +1,11 @@
-use crate::{Body, Grammar, Symbol};
-
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Debug,
     hash::Hash,
     ptr::NonNull,
 };
+
+use crate::{Body, Grammar, Symbol};
 
 /// Set of [`ItemBody`] structs.
 pub(super) type ItemBodies<V, T> = HashSet<ItemBody<V, T>>;
@@ -237,13 +237,13 @@ where
     }
 }
 
-impl<V, T> From<((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)> for ItemSet<V, T>
+impl<V, T> From<((V, &HashSet<Body<V, T>>), &Grammar<V, T>)> for ItemSet<V, T>
 where
     V: Copy + Eq + Hash,
     ItemBody<V, T>: Eq + Hash,
 {
-    fn from(((head, bodies), grammar): ((&V, &HashSet<Body<V, T>>), &Grammar<V, T>)) -> Self {
-        let items = HashMap::from([(*head, bodies.iter().map(ItemBody::from).collect())]);
+    fn from(((head, bodies), grammar): ((V, &HashSet<Body<V, T>>), &Grammar<V, T>)) -> Self {
+        let items = HashMap::from([(head, bodies.iter().map(ItemBody::from).collect())]);
         Self::from_incomplete_map(items, grammar)
     }
 }

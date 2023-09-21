@@ -3,6 +3,7 @@ pub use grammar::Grammar;
 pub use parser::slr::Slr;
 
 mod cfsm;
+mod cst;
 mod grammar;
 mod parser;
 

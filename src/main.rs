@@ -1,11 +1,12 @@
 use pango::{Grammar, Slr, Symbol};
+use pango_lexer::Lexer;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Variables {
     Expr,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Terminals {
     Mul,
     Plus,
@@ -24,7 +25,7 @@ impl<V> From<Terminals> for Symbol<V, Terminals> {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     use {Terminals::*, Variables::*};
 
     let grammar = Grammar::builder()
@@ -43,5 +44,13 @@ fn main() {
 
     let parser = Slr::new(grammar);
 
-    println!("{:#?}", parser);
+    let lexer = Lexer::builder()
+        .with_token_unit(r"\d", Val)?
+        .with_token_unit(r"\+", Plus)?
+        .with_token_unit(r"\*", Mul)?
+        .tokenize("3+4*3+1");
+
+    println!("{:#?}", parser.parse(lexer));
+
+    Ok(())
 }

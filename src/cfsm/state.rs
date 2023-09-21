@@ -70,8 +70,8 @@ impl<V, T> Ord for State<V, T> {
 
 impl<V, T> AsRef<Symbol<V, T>> for WSymbol<V, T> {
     fn as_ref(&self) -> &Symbol<V, T> {
-        // SAFETY: `Symbol` comes from `Grammar` residing in a pinned `Cfsm` which is *NOT*
-        // `Unpin`.
+        // SAFETY: `Symbol` comes from `Grammar` residing in a pinned `Cfsm` which is
+        // *NOT* `Unpin`.
         unsafe { self.0.as_ref() }
     }
 }

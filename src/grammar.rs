@@ -33,6 +33,10 @@ impl<V, T> Grammar<V, T>
 where
     V: Copy,
 {
+    pub(crate) fn get_start_variable(&self) -> V {
+        self.start_variable
+    }
+
     pub(crate) fn iter_variables(&self) -> impl Iterator<Item = V> + '_ {
         self.rules.keys().copied()
     }
@@ -282,6 +286,7 @@ where
 
     pub(super) fn follow_set(&self) -> HashMap<V, HashSet<&Symbol<V, T>>> {
         let mut result: HashMap<V, HashSet<&Symbol<V, T>>> = HashMap::new();
+
         // map of dependencies (values are dependent on keys)
         let mut follow_dependencies: HashMap<V, HashSet<V>> = HashMap::new();
 
@@ -371,14 +376,15 @@ where
 
 impl<V, T> Grammar<V, T>
 where
-    V: Eq + Hash,
+    V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
     /// Returns a set of [`Bodies`](Body) associated with the start variable of
     /// the [`Grammar`].
-    pub(super) fn get_start_variable_rules(&self) -> (&V, &HashSet<Body<V, T>>) {
+    pub(super) fn get_start_variable_rules(&self) -> (V, &HashSet<Body<V, T>>) {
         self.rules
             .get_key_value(&self.start_variable)
+            .map(|(head, body)| (*head, body))
             .expect("start variable should have an associated rule")
     }
 }
@@ -486,8 +492,7 @@ where
                     .flat_map(|body| body.iter())
                     .filter_map(|symbol| match symbol {
                         Symbol::Variable(v) => Some(v),
-                        Symbol::Terminal(_) => None,
-                        Symbol::Epsilon => None,
+                        Symbol::Terminal(_) | Symbol::Epsilon => None,
                     }),
             )
         }

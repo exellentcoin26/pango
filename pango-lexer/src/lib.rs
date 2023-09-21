@@ -1,4 +1,4 @@
-pub use lexer::Lexer;
+pub use lexer::{Lexer, Token};
 
 mod fsm;
 mod iter;

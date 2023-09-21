@@ -40,12 +40,12 @@ enum TokenKindGenerator<TokenKind> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Token<TokenKind> {
     /// Kind of token configured by the user.
-    kind: TokenKind,
+    pub kind: TokenKind,
     /// Source string representation of the token.
-    source: String,
+    pub source: String,
     /// Position of the token in the input. The end points one position beyond
     /// the end of the token.
-    pos: (usize, usize),
+    pub pos: (usize, usize),
 }
 
 impl<TokenKind> Token<TokenKind> {

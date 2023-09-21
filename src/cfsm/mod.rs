@@ -44,8 +44,8 @@ impl<V, T> Cfsm<V, T> {
         &self.get_ref().grammar
     }
 
-    /// Iterates over the states in the [`Cfsm`], guaranteeing the first state will be the start
-    /// state.
+    /// Iterates over the states in the [`Cfsm`], guaranteeing the first state
+    /// will be the start state.
     pub(crate) fn iter(self: Pin<&Self>) -> impl Iterator<Item = &State<V, T>> {
         self.get_ref().states.iter()
     }

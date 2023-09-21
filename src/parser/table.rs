@@ -2,14 +2,14 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash, pin::Pin, ptr::NonNull};
 
 use crate::{
     cfsm::{self, Cfsm, StateId},
-    Symbol,
+    Grammar, Symbol,
 };
 
 // #[derive(Debug)]
 pub struct ParseTable<V, T> {
-    action: ActionTable<V, T>,
-    goto: GotoTable<V>,
-    cfsm: Pin<Box<Cfsm<V, T>>>,
+    pub(super) action: ActionTable<V, T>,
+    pub(super) goto: GotoTable<V>,
+    _cfsm: Pin<Box<Cfsm<V, T>>>,
 }
 
 type ActionTable<V, T> = Vec<HashMap<Terminal<T>, ActionKind<V>>>;
@@ -19,31 +19,12 @@ type GotoTable<V> = Vec<HashMap<V, StateId>>;
 pub enum ActionKind<V> {
     Shift { dest_state: StateId },
     Reduce { variable: V, amount: usize },
-    Accept,
+    Accept { variable: V, amount: usize },
 }
 
-#[derive(PartialEq, Eq, Hash)]
-enum Terminal<T> {
+pub(super) enum Terminal<T> {
     T(NonNull<T>),
     Eof,
-}
-
-impl<T: Debug> Debug for Terminal<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::T(t) => {
-                // SAFETY: `t` comes from the `Cfsm` which is in a `Pin`.
-                f.debug_tuple("T").field(unsafe { t.as_ref() }).finish()
-            }
-            Self::Eof => write!(f, "Eof"),
-        }
-    }
-}
-
-impl<T> From<&T> for Terminal<T> {
-    fn from(value: &T) -> Self {
-        Self::T(NonNull::from(value))
-    }
 }
 
 impl<V: Debug, T: Debug> Debug for ParseTable<V, T> {
@@ -85,7 +66,7 @@ where
                         Self::insert_action(
                             &mut action,
                             *state_id,
-                            t.into(),
+                            Terminal::T(t.into()),
                             ActionKind::Shift { dest_state },
                         )?;
                     }
@@ -104,7 +85,7 @@ where
 
                         for s in follow.iter() {
                             let t = match s {
-                                Symbol::Terminal(t) => t,
+                                Symbol::Terminal(t) => Terminal::T(t.into()),
                                 Symbol::Variable(_) => {
                                     unreachable!("variables should not exist in the follow set")
                                 }
@@ -114,12 +95,26 @@ where
                             Self::insert_action(
                                 &mut action,
                                 *state_id,
-                                t.into(),
+                                t,
                                 ActionKind::Reduce {
                                     variable: head,
                                     amount: body.get_body().len(),
                                 },
-                            )?
+                            )?;
+                        }
+
+                        if head == grammar.get_start_variable() {
+                            // reduce once to the start variable on a lookahead of eof, then
+                            // accept
+                            Self::insert_action(
+                                &mut action,
+                                *state_id,
+                                Terminal::Eof,
+                                ActionKind::Accept {
+                                    variable: head,
+                                    amount: body.get_body().len(),
+                                },
+                            )?;
                         }
                     }
                     Some(Symbol::Epsilon) => {
@@ -132,7 +127,7 @@ where
         Ok(Self {
             action,
             goto,
-            cfsm: cfsm_pin,
+            _cfsm: cfsm_pin,
         })
     }
 }
@@ -155,7 +150,7 @@ where
             .get_mut(state)
             .expect("state should exist as the table has just been resized");
         let mut occupied = true;
-        let entry = state.entry(terminal).or_insert_with(|| {
+        let _entry = state.entry(terminal).or_insert_with(|| {
             occupied = false;
             action
         });
@@ -190,6 +185,61 @@ where
                     "goto conflict should not be possible"
                 );
             }
+        }
+    }
+}
+
+impl<V, T> ParseTable<V, T> {
+    pub(crate) fn get_grammar(&self) -> &Grammar<V, T> {
+        self._cfsm.as_ref().get_grammar()
+    }
+}
+
+impl<T: Debug> Debug for Terminal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::T(t) => {
+                // SAFETY: `t` comes from the `Cfsm` which is in a `Pin`.
+                f.debug_tuple("T").field(unsafe { t.as_ref() }).finish()
+            }
+            Self::Eof => write!(f, "Eof"),
+        }
+    }
+}
+
+impl<T> From<&T> for Terminal<T> {
+    fn from(value: &T) -> Self {
+        Self::T(NonNull::from(value))
+    }
+}
+
+impl<T> PartialEq for Terminal<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // SAFETY: Both pointers point to a terminal which reside in the pinnned `Cfsm`, which
+            // is NOT `Unpin`.
+            (Terminal::T(lhs), Terminal::T(rhs)) => unsafe { lhs.as_ref() == rhs.as_ref() },
+            (Terminal::Eof, Terminal::Eof) => true,
+            _ => false,
+        }
+    }
+}
+
+impl<T> Eq for Terminal<T> where T: Eq {}
+
+impl<T> Hash for Terminal<T>
+where
+    T: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            // SAFETY: `t` points to a terminal which resides in the pinnned `Cfsm`, which
+            // is NOT `Unpin`.
+            Terminal::T(t) => unsafe { t.as_ref() }.hash(state),
+            Terminal::Eof => 0.hash(state),
         }
     }
 }
