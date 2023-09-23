@@ -1,5 +1,5 @@
-use pango::{Grammar, Slr, Symbol, TerminalEq, TerminalHash};
 use pango_lexer::Lexer;
+use pango_parser::{Grammar, Slr, Symbol, TerminalEq, TerminalHash};
 
 // Note: Be careful when deriving `Eq`, `PartialEq` and `Hash` for terminals, the lookup of actions in the parse table is
 // done using the `Eq` and `Hash` implementation. This means that if the terminal were to hold

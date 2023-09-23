@@ -1,15 +1,12 @@
-[package]
-name = "pango"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
+# [package]
+# name = "pango"
+# version = "0.1.0"
+# edition = "2021"
+#
+# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+#
 [workspace]
 members = [
   "pango-lexer",
+  "pango-parser"
 ]
-
-[dependencies]
-dyn-clone = "1"
-pango-lexer = {path = "./pango-lexer"}
