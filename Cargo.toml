@@ -11,3 +11,5 @@ members = [
 ]
 
 [dependencies]
+dyn-clone = "1"
+pango-lexer = {path = "./pango-lexer"}

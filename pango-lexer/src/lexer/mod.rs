@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 mod input;
 
 /// Finite-state machine based lexer.
-pub struct Lexer<'input, TokenKind, Fsm: Simulatable> {
+pub struct Lexer<'input, TokenKind, Fsm: Simulatable = Nfa> {
     /// Input to be lexed.
     pub input: &'input str,
     /// Iterator over the input.
@@ -22,7 +22,8 @@ pub struct Lexer<'input, TokenKind, Fsm: Simulatable> {
     tokens: BTreeMap<StateId, TokenKindGenerator<TokenKind>>,
 }
 
-/// `TokenKind`s can be generated based on the token or can just be cloned.
+/// `TokenKind`s can be generated based on the token or can just be created
+/// (e.g., unit structs).
 ///
 /// This is useful for doing some parsing of the internal structure of the
 /// token, for example, converting to [si units](https://en.wikipedia.org/wiki/International_System_of_Units). In rust,
@@ -31,29 +32,23 @@ pub struct Lexer<'input, TokenKind, Fsm: Simulatable> {
 enum TokenKindGenerator<TokenKind> {
     /// Generate a `TokenKind` based on the token source.
     Map(Box<dyn FnMut(&str) -> TokenKind>),
-    /// Clone the `TokenKind`.
-    Unit(TokenKind),
+    /// Create the `TokenKind`.
+    Unit(Box<dyn FnMut() -> TokenKind>),
 }
 
 /// [`Token`] returned by the [`Lexer`].
 #[derive(Debug, PartialEq, Eq)]
-pub struct Token<TokenKind>
-where
-    TokenKind: Clone,
-{
+pub struct Token<TokenKind> {
     /// Kind of token configured by the user.
-    kind: TokenKind,
+    pub kind: TokenKind,
     /// Source string representation of the token.
-    source: String,
+    pub source: String,
     /// Position of the token in the input. The end points one position beyond
     /// the end of the token.
-    pos: (usize, usize),
+    pub pos: (usize, usize),
 }
 
-impl<TokenKind> Token<TokenKind>
-where
-    TokenKind: Clone,
-{
+impl<TokenKind> Token<TokenKind> {
     /// Creates a new [`Token`] from the [`InputIterToken`].
     fn from_input_iter_token(
         InputIterToken { source, pos }: InputIterToken,
@@ -67,7 +62,6 @@ impl<TokenKind, Fsm> Iterator for Lexer<'_, TokenKind, Fsm>
 where
     for<'a> Fsm: Simulatable + 'a,
     for<'a> Fsm::Simulator<'a>: NDSimulate,
-    TokenKind: Clone,
 {
     type Item = Token<TokenKind>;
 
@@ -110,7 +104,7 @@ where
                             token_kind_gen(&self.iter.get_token().source)
                         }
 
-                        TokenKindGenerator::Unit(token_kind) => token_kind.clone(),
+                        TokenKindGenerator::Unit(token_kind_gen) => token_kind_gen(),
                     },
                 );
             }
@@ -154,14 +148,38 @@ impl<TokenKind> LexerGenerator<TokenKind> {
         Self::default()
     }
 
+    /// Adds a single token to the [`Lexer`]. The function is called when
+    /// generating the token. It is not given the source representation of
+    /// the token. If you need this use [`with_token_map`] instead.
+    ///
+    /// # Fails
+    ///
+    /// When the provided `token` is invalid regex.
+    ///
+    /// [`with_token_map`]: Self::with_token_map
+    #[inline]
+    pub fn with_token(mut self, token: &str, token_kind: fn() -> TokenKind) -> ParseResult<Self>
+    where
+        TokenKind: 'static,
+    {
+        self.add_token(token, TokenKindGenerator::Unit(Box::new(token_kind)))?;
+        Ok(self)
+    }
+
     /// Adds a single token to the [`Lexer`].
     ///
     /// # Fails
     ///
     /// When the provided `token` is invalid regex.
     #[inline]
-    pub fn with_token(mut self, token: &str, token_kind: TokenKind) -> ParseResult<Self> {
-        self.add_token(token, TokenKindGenerator::Unit(token_kind))?;
+    pub fn with_token_unit(mut self, token: &str, token_kind: TokenKind) -> ParseResult<Self>
+    where
+        TokenKind: Copy + 'static,
+    {
+        self.add_token(
+            token,
+            TokenKindGenerator::Unit(Box::new(move || token_kind)),
+        )?;
         Ok(self)
     }
 
@@ -176,9 +194,13 @@ impl<TokenKind> LexerGenerator<TokenKind> {
     pub fn with_token_map(
         mut self,
         token: &str,
-        token_kind_map: Box<dyn FnMut(&str) -> TokenKind>,
-    ) -> ParseResult<Self> {
-        self.add_token(token, TokenKindGenerator::Map(token_kind_map))?;
+        // token_kind_map: Box<dyn FnMut(&str) -> TokenKind>,
+        token_kind_map: fn(&str) -> TokenKind,
+    ) -> ParseResult<Self>
+    where
+        TokenKind: 'static,
+    {
+        self.add_token(token, TokenKindGenerator::Map(Box::new(token_kind_map)))?;
         Ok(self)
     }
 
@@ -248,27 +270,28 @@ mod tests {
 
     #[test]
     fn lexer() -> Result<(), Box<dyn std::error::Error>> {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
         enum Foo {
+            #[default]
             A,
             B,
             C,
-            D { len: usize },
+            D {
+                len: usize,
+            },
             E,
         }
 
         let tokens = Lexer::builder()
-            .with_token("aaaa", Foo::A)?
-            .with_token("b{4,}", Foo::B)?
-            .with_token("b{4}", Foo::C)?
-            .with_token_map(
-                "d*",
-                Box::new(|token_source| Foo::D {
-                    len: token_source.len(),
-                }),
-            )?
-            .with_token(r"/\* .*", Foo::A)?
-            .with_token(r"/\* .* \*/", Foo::E)?
+            .with_token_unit("aaaa", Foo::A)?
+            .with_token_unit("b{4,}", Foo::B)?
+            .with_token_unit("b{4}", Foo::C)?
+            .with_token_map("d*", |token_source| Foo::D {
+                len: token_source.len(),
+            })?
+            .with_token_unit(r"/\* .*", Foo::A)?
+            .with_token_unit(r"/\* .* \*/", Foo::E)?
+            .with_token(r"a", Default::default)?
             .tokenize(
                 "bbbbbbbaaaabbbbddddddddddddddddd/* foo bar baz **** * /* foo bar baz ***** */",
             );
