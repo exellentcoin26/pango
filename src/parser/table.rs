@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, pin::Pin, ptr::NonNull};
 
+use super::traits::{TerminalEq, TerminalHash};
 use crate::{
     cfsm::{self, Cfsm, StateId},
     Grammar, Symbol,
@@ -40,7 +41,7 @@ impl<V: Debug, T: Debug> Debug for ParseTable<V, T> {
 impl<V, T> ParseTable<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    T: TerminalEq + TerminalHash + Eq + Hash,
 {
     pub fn new_slr(cfsm_pin: Pin<Box<Cfsm<V, T>>>) -> Result<Self, ()> {
         let cfsm = cfsm_pin.as_ref();
@@ -134,7 +135,7 @@ where
 
 impl<V, T> ParseTable<V, T>
 where
-    T: Eq + Hash,
+    T: TerminalEq + TerminalHash,
 {
     fn insert_action(
         table: &mut ActionTable<V, T>,
@@ -215,30 +216,32 @@ impl<T> From<&T> for Terminal<T> {
 
 impl<T> PartialEq for Terminal<T>
 where
-    T: PartialEq,
+    T: TerminalEq,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // SAFETY: Both pointers point to a terminal which reside in the pinnned `Cfsm`, which
             // is NOT `Unpin`.
-            (Terminal::T(lhs), Terminal::T(rhs)) => unsafe { lhs.as_ref() == rhs.as_ref() },
+            (Terminal::T(lhs), Terminal::T(rhs)) => unsafe {
+                lhs.as_ref().terminal_eq(rhs.as_ref())
+            },
             (Terminal::Eof, Terminal::Eof) => true,
             _ => false,
         }
     }
 }
 
-impl<T> Eq for Terminal<T> where T: Eq {}
+impl<T> Eq for Terminal<T> where T: TerminalEq {}
 
 impl<T> Hash for Terminal<T>
 where
-    T: Hash,
+    T: TerminalHash,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             // SAFETY: `t` points to a terminal which resides in the pinnned `Cfsm`, which
             // is NOT `Unpin`.
-            Terminal::T(t) => unsafe { t.as_ref() }.hash(state),
+            Terminal::T(t) => unsafe { t.as_ref() }.terminal_hash(state),
             Terminal::Eof => 0.hash(state),
         }
     }

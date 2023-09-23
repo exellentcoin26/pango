@@ -1,6 +1,9 @@
 pub use cfsm::Cfsm;
 pub use grammar::Grammar;
-pub use parser::slr::Slr;
+pub use parser::{
+    slr::Slr,
+    traits::{TerminalEq, TerminalHash},
+};
 
 mod cfsm;
 mod cst;

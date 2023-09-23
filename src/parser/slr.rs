@@ -2,7 +2,10 @@ use std::hash::Hash;
 
 use pango_lexer::{Lexer, Token};
 
-use super::table::{ActionKind, ParseTable, Terminal};
+use super::{
+    table::{ActionKind, ParseTable, Terminal},
+    traits::{TerminalEq, TerminalHash},
+};
 use crate::{
     cfsm::{Cfsm, StateId},
     cst::{Cst, Node},
@@ -22,7 +25,7 @@ struct ParseNode<V, T> {
 impl<V, T> Slr<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    T: TerminalEq + TerminalHash + Eq + Hash,
 {
     pub fn new(grammar: Grammar<V, T>) -> Self {
         let cfsm = Cfsm::from_grammar(grammar);
@@ -36,7 +39,7 @@ where
 impl<V, T> Slr<V, T>
 where
     V: Copy + Eq + Hash,
-    T: Eq + Hash,
+    T: TerminalEq + TerminalHash + Eq + Hash,
 {
     pub fn parse(&self, mut input: Lexer<T>) -> Result<Cst<V, T>, ()> {
         // TODO: Store position information about the token.
