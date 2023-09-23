@@ -1,4 +1,4 @@
-pub(crate) use self::{ast::Ast, parser::Parser};
+pub(crate) use self::{parser::Parser};
 
 pub(crate) mod ast;
 pub(crate) mod parser;

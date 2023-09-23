@@ -1,5 +1,5 @@
 pub(crate) use self::{
-    nfa::{compiler::Compiler as NfaCompiler, model::Nfa, sim::NfaSimulator},
+    nfa::{compiler::Compiler as NfaCompiler, model::Nfa},
     traits::{NDSimulate, Simulatable, Simulate},
 };
 

@@ -181,7 +181,7 @@ impl Simulate for NfaSimulator<'_> {
     fn can_feed(&self, input: char) -> bool {
         for Run {
             state_id,
-            state_counters,
+            state_counters: _,
         } in self.runs.iter()
         {
             let State { transitions, .. } = self.nfa.get_state(*state_id);
