@@ -1,18 +1,6 @@
 use pango_lexer::Lexer;
 use pango_parser::{Grammar, Slr, Symbol, TerminalEq, TerminalHash};
 
-// Note: Be careful when deriving `Eq`, `PartialEq` and `Hash` for terminals, the lookup of actions in the parse table is
-// done using the `Eq` and `Hash` implementation. This means that if the terminal were to hold
-// data (e.g., named fields), this would be taken into account. Mostly resulting in incorrect
-// behaviour.
-
-// TODO: Find a way to solve this.
-//
-// Ideas:
-//  - Using a different trait: This is possible because the table does not store a terminal
-//    directly. Instead it stores a wrapper type which would allow for `Eq` and `Hash` to be passed
-//    through to something like `TerminalEq` and `TerminalHash`.
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Variables {
     Expr,
