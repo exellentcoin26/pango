@@ -1,7 +1,7 @@
 use self::input::{InputIter, InputIterToken};
 use crate::{
     fsm::{NDSimulate, Nfa, NfaCompiler, Simulatable, Simulate, StateId},
-    regex::{self, parser::ParseResult},
+    regex::{self, parser::error::ParseResult},
 };
 
 use std::collections::BTreeMap;
@@ -158,7 +158,7 @@ impl<TokenKind> LexerGenerator<TokenKind> {
     ///
     /// [`with_token_map`]: Self::with_token_map
     #[inline]
-    pub fn with_token(mut self, token: &str, token_kind: fn() -> TokenKind) -> ParseResult<Self>
+    pub fn with_token(mut self, token: &str, token_kind: fn() -> TokenKind) -> ParseResult<'_, Self>
     where
         TokenKind: 'static,
     {
@@ -172,7 +172,7 @@ impl<TokenKind> LexerGenerator<TokenKind> {
     ///
     /// When the provided `token` is invalid regex.
     #[inline]
-    pub fn with_token_unit(mut self, token: &str, token_kind: TokenKind) -> ParseResult<Self>
+    pub fn with_token_unit(mut self, token: &str, token_kind: TokenKind) -> ParseResult<'_, Self>
     where
         TokenKind: Copy + 'static,
     {
@@ -196,7 +196,7 @@ impl<TokenKind> LexerGenerator<TokenKind> {
         token: &str,
         // token_kind_map: Box<dyn FnMut(&str) -> TokenKind>,
         token_kind_map: fn(&str) -> TokenKind,
-    ) -> ParseResult<Self>
+    ) -> ParseResult<'_, Self>
     where
         TokenKind: 'static,
     {
@@ -209,11 +209,11 @@ impl<TokenKind> LexerGenerator<TokenKind> {
     /// # Fails
     ///
     /// When the provided `token` is invalid regex.
-    fn add_token(
+    fn add_token<'a>(
         &mut self,
-        token: &str,
+        token: &'a str,
         token_kind: TokenKindGenerator<TokenKind>,
-    ) -> ParseResult<()> {
+    ) -> ParseResult<'a, ()> {
         // start a new token in the finite-state machine
         let token_final_state = self.fsm_compiler.new_final();
 
