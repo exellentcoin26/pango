@@ -8,7 +8,8 @@ use std::{
 // TODO: Convert runtime errors with start variable to type-state builder
 // pattern.
 
-// TODO: Add first set generation (without completely reimplementing the functions).
+// TODO: Add first set generation (without completely reimplementing the
+// functions).
 
 /// Represents a [parsing expression grammar](https://en.wikipedia.org/wiki/Parsing_expression_grammar).
 #[derive(Debug, Clone)]
@@ -77,8 +78,8 @@ mod body_iter {
 
     use super::Symbol;
 
-    // NOTE: This trait is needed because rust does not allow implementing traits for non-local
-    // types (e.g., `Box<dyn Iterator<Item = _>>`).
+    // NOTE: This trait is needed because rust does not allow implementing traits
+    // for non-local types (e.g., `Box<dyn Iterator<Item = _>>`).
     pub(super) trait BodyIter<'a, V: 'a, T: 'a>:
         Iterator<Item = &'a Symbol<V, T>> + 'a + DynClone
     {
@@ -452,7 +453,8 @@ where
     V: Copy + Eq + Hash,
     Symbol<V, T>: Eq + Hash,
 {
-    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the grammar.
+    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the
+    /// grammar.
     pub fn with_rules<B>(mut self, variable: V, bodies: impl IntoIterator<Item = B>) -> Self
     where
         B: Into<Body<V, T>>,
@@ -461,7 +463,8 @@ where
         self
     }
 
-    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the grammar.
+    /// Adds a set of [`Bodies`](Body) associated with a `Variable` to the
+    /// grammar.
     pub fn add_rules<B>(&mut self, variable: V, bodies: impl IntoIterator<Item = B>)
     where
         B: Into<Body<V, T>>,
@@ -476,8 +479,8 @@ impl<V, T> GrammarBuilder<V, T>
 where
     V: Eq + Hash,
 {
-    /// Builds the [`Grammar`] and does runtime checks (used variables have at least one
-    /// associated rule, a start variable is set).
+    /// Builds the [`Grammar`] and does runtime checks (used variables have at
+    /// least one associated rule, a start variable is set).
     pub fn build(self) -> Grammar<V, T> {
         // check whether all variables have a rule associated with them
         let mut variables = HashSet::new();
