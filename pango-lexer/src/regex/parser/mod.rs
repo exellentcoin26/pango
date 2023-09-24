@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn parse() {
-        let mut parser = Parser::new(r"\w\d[q-z](0|4+)*.🙃#");
+        let parser = Parser::new(r"\w\d[q-z](0|4+)*.🙃#");
         parser.parse().unwrap();
     }
 }
