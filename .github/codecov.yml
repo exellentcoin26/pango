@@ -11,17 +11,17 @@ coverage:
       # entire project
       default:
         target: auto
-        # Avoid false negatives
+        # avoid false negatives
         threshold: 1%
-      # measure crate separately
+      # measure crates separately
       pango-lexer:
         target: auto
         paths: 
           - "pango-lexer/"
-      pango:
+      pango-parser:
         target: auto
         paths:
-          - "src/"
+          - "pango-parser/"
 
     default_rules:
       flag_coverage_not_uploaded_behavior: include
@@ -29,9 +29,10 @@ coverage:
 github_checks:
   annotations: true
 
-# Test files aren't important for coverage
+# test and example files aren't important for coverage
 ignore:
   - "tests"
+  - "examples"
 
 comment:
   require_changes: true
