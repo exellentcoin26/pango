@@ -55,7 +55,12 @@ where
             state: current_state,
         }]);
 
-        while let Some(token) = next_token.or_else(|| input.next()) {
+        while let Some(token) = next_token.map(Ok).or_else(|| input.next()) {
+            let token = match token {
+                Ok(token) => token,
+                Err(_) => return Err(()),
+            };
+
             next_token = Some(token);
             let (parse_node, accept) =
                 self.handle_token(&mut next_token, &mut stack, current_state)?;

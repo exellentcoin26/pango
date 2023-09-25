@@ -97,7 +97,8 @@ impl<'a> Parser<'a> {
             return Err(ParseError {
                 kind: ParseErrorKind::TokenForSubExpression,
                 pos: self.get_current_token_position(),
-            }.into());
+            }
+            .into());
         };
 
         match kind {

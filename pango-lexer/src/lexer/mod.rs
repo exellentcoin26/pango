@@ -1,11 +1,15 @@
-use self::input::{InputIter, InputIterToken};
+use self::{
+    error::{LexError, LexResult},
+    input::{InputIter, InputIterToken},
+};
 use crate::{
     fsm::{NDSimulate, Nfa, NfaCompiler, Simulatable, Simulate, StateId},
     regex::{self, parser::error::ParseResult},
 };
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, iter::FusedIterator};
 
+mod error;
 mod input;
 
 /// Finite-state machine based lexer.
@@ -63,7 +67,7 @@ where
     for<'a> Fsm: Simulatable + 'a,
     for<'a> Fsm::Simulator<'a>: NDSimulate,
 {
-    type Item = Token<TokenKind>;
+    type Item = LexResult<Token<TokenKind>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut sim = self.fsm.to_simulator();
@@ -73,8 +77,16 @@ where
             if !sim.can_feed(ch) {
                 // the current token is the longest token we can 'munch'
 
-                return token_kind.map(|token_kind| {
-                    Token::from_input_iter_token(self.iter.consume_token(), token_kind)
+                return Some(match token_kind {
+                    Some(token_kind) => Ok(Token::from_input_iter_token(
+                        self.iter.consume_token(),
+                        token_kind,
+                    )),
+                    None => {
+                        // tokenizer could not identify the token
+                        let token = self.iter.get_token();
+                        Err(LexError(token.pos.0, token.pos.1))
+                    }
                 });
             }
 
@@ -85,7 +97,7 @@ where
 
                 // Get the first final state the Simulator is in.
                 //
-                // Note: this assumes that the lower final state ids, have the highest
+                // NOTE: this assumes that the lower final state ids, have the highest
                 // precedence. This is enforced by the order of expression
                 // compilation.
                 let final_state = sim
@@ -112,12 +124,31 @@ where
 
         if sim.is_accepting() {
             token_kind.map(|token_kind| {
-                Token::from_input_iter_token(self.iter.consume_token(), token_kind)
+                Ok(Token::from_input_iter_token(
+                    self.iter.consume_token(),
+                    token_kind,
+                ))
             })
         } else {
-            None
+            // check if characters are remaining
+            self.iter.accept_suffix();
+            let token = self.iter.get_token();
+
+            if token.is_empty() {
+                None
+            } else {
+                let token = self.iter.consume_token();
+                Some(Err(LexError(token.pos.0, token.pos.1)))
+            }
         }
     }
+}
+
+impl<TokenKind, Fsm> FusedIterator for Lexer<'_, TokenKind, Fsm>
+where
+    for<'a> Fsm: Simulatable + 'a,
+    for<'a> Fsm::Simulator<'a>: NDSimulate,
+{
 }
 
 impl<TokenKind> Lexer<'_, TokenKind, Nfa> {
@@ -247,7 +278,7 @@ mod tests {
     macro_rules! assert_eq_tokens {
         ($lhs:expr, $rhs:expr) => {
             for (expected, actual) in $lhs.into_iter().zip($rhs) {
-                assert_eq!(expected, actual);
+                assert_eq!(Ok(expected), actual);
             }
         };
     }
@@ -266,22 +297,24 @@ mod tests {
         };
     }
 
+    use crate::lexer::error::LexError;
+
     use super::{Lexer, Token};
+
+    #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+    enum Foo {
+        #[default]
+        A,
+        B,
+        C,
+        D {
+            len: usize,
+        },
+        E,
+    }
 
     #[test]
     fn lexer() -> Result<(), Box<dyn std::error::Error>> {
-        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-        enum Foo {
-            #[default]
-            A,
-            B,
-            C,
-            D {
-                len: usize,
-            },
-            E,
-        }
-
         let tokens = Lexer::builder()
             .with_token_unit("aaaa", Foo::A)?
             .with_token_unit("b{4,}", Foo::B)?
@@ -305,6 +338,17 @@ mod tests {
         ];
 
         assert_eq_tokens!(expected, tokens);
+
+        Ok(())
+    }
+
+    #[test]
+    fn token_error() -> Result<(), Box<dyn std::error::Error>> {
+        let tokens = Lexer::builder()
+            .with_token_unit("aa", Foo::A)?
+            .tokenize("aaa");
+
+        assert_eq!(tokens.last(), Some(Err(LexError(2, 3))));
 
         Ok(())
     }
