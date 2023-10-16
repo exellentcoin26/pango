@@ -9,7 +9,7 @@ use crate::{
 
 use std::{collections::BTreeMap, iter::FusedIterator};
 
-mod error;
+pub mod error;
 mod input;
 
 /// Finite-state machine based lexer.
