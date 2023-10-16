@@ -3,14 +3,17 @@ use std::hash::Hash;
 use pango_lexer::{Lexer, Token};
 
 use super::{
-    table::{ActionKind, ParseTable, Terminal},
+    error::ParseError,
+    table::{ActionKind, ParseTable},
     traits::{TerminalEq, TerminalHash},
 };
 use crate::{
     cfsm::{Cfsm, StateId},
     cst::{Cst, Node},
-    Grammar, Symbol,
+    Grammar, Symbol, Terminal,
 };
+
+// TODO: Add mechanism for recovering parsing errors.
 
 #[derive(Debug)]
 pub struct Slr<V, T> {
@@ -41,7 +44,7 @@ where
     V: Copy + Eq + Hash,
     T: TerminalEq + TerminalHash + Eq + Hash,
 {
-    pub fn parse(&self, mut input: Lexer<T>) -> Result<Cst<V, T>, ()> {
+    pub fn parse(&self, mut input: Lexer<T>) -> Result<Cst<V, T>, ParseError<T>> {
         // TODO: Store position information about the token.
 
         let mut next_token = None;
@@ -58,7 +61,7 @@ where
         while let Some(token) = next_token.map(Ok).or_else(|| input.next()) {
             let token = match token {
                 Ok(token) => token,
-                Err(_) => return Err(()),
+                Err(err) => return Err(ParseError::Lexer(err)),
             };
 
             next_token = Some(token);
@@ -91,7 +94,10 @@ where
         }
 
         // never reached the accept call
-        Err(())
+        Err(ParseError::Parser {
+            received_token: None,
+            expected_tokens: self.get_expected_tokens(current_state),
+        })
     }
 
     fn handle_token(
@@ -99,7 +105,7 @@ where
         token: &mut Option<Token<T>>,
         stack: &mut Vec<ParseNode<V, T>>,
         current_state: StateId,
-    ) -> Result<(ParseNode<V, T>, bool), ()> {
+    ) -> Result<(ParseNode<V, T>, bool), ParseError<T>> {
         let terminal = match token {
             Some(Token { ref kind, .. }) => kind.into(),
             None => Terminal::Eof,
@@ -111,8 +117,11 @@ where
             .get(current_state)
             .expect("state does not exist in the action table");
 
-        let Some(action_kind) = action.get(&terminal) else {
-            return Err(());
+        let Some(action_kind) = action.get(&terminal.into()) else {
+            return Err(ParseError::Parser {
+                received_token: token.take(),
+                expected_tokens: self.get_expected_tokens(current_state),
+            });
         };
 
         let mut accept = false;
@@ -141,10 +150,9 @@ where
                     )
                     .expect("state does not exist in the goto table");
 
-                let Some(new_state) = goto.get(variable) else {
-                    return Err(());
-                };
-
+                let new_state = goto
+                    .get(variable)
+                    .expect("could not find variable in goto table");
                 ParseNode {
                     node: Node {
                         symbol: Symbol::Variable(*variable),
@@ -173,6 +181,15 @@ where
         };
 
         Ok((parse_node, accept))
+    }
+
+    fn get_expected_tokens(&self, current_state: StateId) -> Vec<Terminal<&'_ T>> {
+        let action = self
+            .table
+            .action
+            .get(current_state)
+            .expect("state does not exist in the action table");
+        action.keys().copied().map(|k| k.into()).collect()
     }
 }
 
