@@ -226,6 +226,7 @@ impl<T> From<crate::Terminal<&T>> for TableTerminal<T> {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl<'a, T> Into<crate::Terminal<&'a T>> for TableTerminal<T> {
     fn into(self) -> crate::Terminal<&'a T> {
         match self.0 {

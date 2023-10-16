@@ -237,7 +237,7 @@ impl NfaBuilder {
         self.get_state_mut(start)
             .transitions
             .entry(input)
-            .or_insert(HashSet::new())
+            .or_default()
             .insert(end);
     }
 
@@ -254,7 +254,7 @@ impl NfaBuilder {
         self.get_state_mut(id)
             .transitions
             .entry(Input::Quantified(quantifier))
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(quantifier_done);
 
         id
@@ -294,7 +294,7 @@ impl NfaBuilder {
 
 impl PartialOrd for State {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.id.partial_cmp(&other.id)
+        Some(self.cmp(other))
     }
 }
 

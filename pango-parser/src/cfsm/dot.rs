@@ -12,6 +12,8 @@ where
     /// dot language format.
     #[allow(unused)]
     pub fn to_dot(&self) -> String {
+        use std::fmt::Write;
+
         format!(
             "digraph cfsm {{\n\
                 \trankdir=LR;\n\
@@ -21,12 +23,14 @@ where
             \n\
                 {}\n\
             }}",
-            self.node_labels_dot()
-                .map(|l| format!("\t{}\n", l))
-                .collect::<String>(),
-            self.transitions_dot()
-                .map(|l| format!("\t{}\n", l))
-                .collect::<String>(),
+            self.node_labels_dot().fold(String::new(), |mut s, l| {
+                writeln!(s, "\t{}", l);
+                s
+            }),
+            self.transitions_dot().fold(String::new(), |mut s, l| {
+                writeln!(s, "\t{}", l);
+                s
+            })
         )
     }
 

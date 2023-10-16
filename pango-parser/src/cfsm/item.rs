@@ -148,11 +148,7 @@ where
                 .expect("variable should have an associated rule");
 
             for new_item_body in new_item_bodies {
-                if items
-                    .entry(head)
-                    .or_insert_with(ItemBodies::new)
-                    .insert(new_item_body)
-                {
+                if items.entry(head).or_default().insert(new_item_body) {
                     pending_bodies.push_back(new_item_body);
                 }
             }
