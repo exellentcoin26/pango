@@ -31,7 +31,7 @@ impl Default for InputIterToken {
 
 impl InputIterToken {
     /// Creates a new [`InputIterToken`].
-    pub(self) fn new(token_start: usize) -> Self {
+    fn new(token_start: usize) -> Self {
         Self {
             source: String::new(),
             pos: (token_start, token_start),
@@ -39,8 +39,12 @@ impl InputIterToken {
     }
 
     /// Updates the end position of the token.
-    pub(self) fn update_pos_end(&mut self, new_end: usize) {
+    fn update_pos_end(&mut self, new_end: usize) {
         self.pos.1 = new_end;
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.source.is_empty()
     }
 }
 

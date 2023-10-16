@@ -371,12 +371,14 @@ impl<'a> Tokenizer<'a> {
             None => (0, 0),
         };
 
-        self.iter
-            .by_ref()
-            .cautious_map_while(|(_, ch)| ch.to_digit(16))
-            .fold(Some((digit_count, start)), |acc, d| {
-                acc.map(|(digit_count, n)| (digit_count + 1, (n << 4) + d))
-            })
+        Some(
+            self.iter
+                .by_ref()
+                .cautious_map_while(|(_, ch)| ch.to_digit(16))
+                .fold((digit_count, start), |(digit_count, n), d| {
+                    (digit_count + 1, (n << 4) + d)
+                }),
+        )
     }
 
     /// Take all decimal characters from the input iterator even if they

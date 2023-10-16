@@ -441,10 +441,7 @@ where
             Body::from([Symbol::Epsilon])
         };
 
-        self.rules
-            .entry(variable)
-            .or_insert_with(HashSet::new)
-            .insert(body)
+        self.rules.entry(variable).or_default().insert(body)
     }
 }
 
